@@ -1,6 +1,6 @@
 import { Canvas } from "../canvas/canvas";
 import { Pen } from "../pen/pen";
-import type { Color, Point } from "../type";
+import type { Camera, Color, Point } from "../type";
 import { getStroke } from "perfect-freehand";
 import { getSvgPathFromStroke } from "../utils";
 
@@ -24,10 +24,12 @@ export class App {
     }
   }
 
-  renderScene(allStrokes: Point[][], currentStroke: Point[]) {
+  renderScene(allStrokes: Point[][], currentStroke: Point[], camera: Camera) {
     const ctx = this.pens[this.currentPen].pen;
 
+    ctx.resetTransform();
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    ctx.setTransform(camera.zoom, 0, 0, camera.zoom, camera.x, camera.y);
 
     for (const stroke of allStrokes) {
       this.drawPerfectStroke(ctx, stroke);
@@ -44,6 +46,7 @@ export class App {
       thinning: 0.7,
       smoothing: 0.5,
       streamline: 0.5,
+      simulatePressure: false,
     });
 
     const pathData = getSvgPathFromStroke(outlinePoints);
