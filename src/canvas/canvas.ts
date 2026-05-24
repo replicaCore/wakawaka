@@ -4,7 +4,7 @@ import type { Point, Camera } from "../type";
 export class Canvas {
   private _canvas: HTMLCanvasElement;
   private _allStrokes: Point[][] = [];
-  private currentStroke: Point[] = [];
+  private _currentStroke: Point[] = [];
   private _isDrawing = false;
   private app: App;
 
@@ -24,6 +24,12 @@ export class Canvas {
   }
   public get canvas() {
     return this._canvas;
+  }
+  public get currentStroke(): Point[] {
+    return this._currentStroke;
+  }
+  public set currentStroke(value: Point[]) {
+    this._currentStroke = value;
   }
 
   constructor(

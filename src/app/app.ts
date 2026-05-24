@@ -3,12 +3,14 @@ import { Pen } from "../pen/pen";
 import type { Camera, Color, Point } from "../type";
 import { getStroke } from "perfect-freehand";
 import { getSvgPathFromStroke } from "../utils";
+import { KeyboardManager } from "../keyboardManager/keyboardManager";
 
 export class App {
   private canvas: Canvas;
   private pens: Pen[] = [];
   private currentPen: number = 1;
   private color: Color = "White";
+  private kb: KeyboardManager;
 
   constructor() {
     this.canvas = new Canvas(
@@ -17,6 +19,8 @@ export class App {
       window.innerHeight,
       this,
     );
+
+    this.kb = new KeyboardManager(this.canvas, this);
 
     for (let i = 0; i <= 5; i++) {
       let pen = new Pen(this.canvas.canvas);
