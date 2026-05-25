@@ -24,6 +24,7 @@ export class InputHandler {
 
   private setupEvents() {
     this.canvas.addEventListener("pointerdown", (e) => {
+      document.body.classList.add("canvas-active");
       if (e.pointerType === "touch" || e.button === 1 || this.isSpacePressed) {
         this.isPanning = true;
         this.lastPanPoint = { x: e.clientX, y: e.clientY };
@@ -68,6 +69,7 @@ export class InputHandler {
     });
 
     window.addEventListener("pointerup", () => {
+      document.body.classList.remove("canvas-active");
       this.isPanning = false;
 
       if (this.isSpacePressed) {

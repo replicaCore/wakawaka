@@ -1,1 +1,13 @@
 @import "tailwindcss";
+
+#UI {
+  transition: opacity 0.2s ease-in-out;
+}
+
+body.canvas-active #UI {
+  opacity: 0.15;
+}
+
+body.canvas-active #UI * {
+  pointer-events: none !important;
+}
