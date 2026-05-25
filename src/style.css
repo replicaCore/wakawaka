@@ -1,5 +1,34 @@
 @import "tailwindcss";
 
+/* palette focus  */
+
+.palette-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.palette-btn::after {
+  content: "";
+  position: absolute;
+  left: 26.5%;
+  bottom: -3%;
+  display: none;
+
+  border-width: 0 10px 16px 10px;
+  border-style: solid;
+  border-color: transparent transparent white transparent;
+
+  pointer-events: none;
+  mix-blend-mode: difference;
+  filter: invert(1);
+}
+
+.palette-btn.active-palette::after {
+  display: block;
+}
+
+/* opacity UI */
+
 #UI {
   transition: opacity 0.2s ease-in-out;
 }

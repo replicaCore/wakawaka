@@ -81,9 +81,9 @@ export class Palette {
   private updateActiveUI() {
     this.buttons.forEach((btn, i) => {
       if (i === this.activeSlotIndex) {
-        btn.classList.add("border-gray-800");
+        btn.classList.add("border-gray-800", "active-palette");
       } else {
-        btn.classList.remove("border-gray-800");
+        btn.classList.remove("border-gray-800", "active-palette");
       }
     });
   }
