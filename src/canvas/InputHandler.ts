@@ -77,7 +77,10 @@ export class InputHandler {
         e.preventDefault();
 
         const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
-        this.zoomCamera(e.clientX, e.clientY, zoomFactor);
+        const centerX = window.innerWidth / 2;
+        const centerY = window.innerHeight / 2;
+
+        this.zoomCamera(centerX, centerY, zoomFactor);
       },
       { passive: false },
     );
