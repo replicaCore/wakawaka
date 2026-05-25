@@ -5,15 +5,41 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>canvas</title>
+    <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body class="overflow-hidden">
-    <dev>
-      <dev id="UI">
-        <button id="undo">UNDO</button>
+    <div>
+      <div id="UI" class="relative items-center">
+        <button id="undo" class="w-8 h-8 bg-blue-50 text-cyan-100">UNDO</button>
         <button id="redo">REDO</button>
-      </dev>
-      <canvas id="app" , class="touch-none"></canvas>
+        <div
+          class="palette-btn w-12 h-12 rounded-full border-2 border-transparent shadow"
+          data-index="0"
+        ></div>
+        <div
+          class="palette-btn w-12 h-12 rounded-full border-2 border-transparent shadow"
+          data-index="1"
+        ></div>
+        <div
+          class="palette-btn w-12 h-12 rounded-full border-2 border-transparent shadow"
+          data-index="2"
+        ></div>
+        <div
+          class="palette-btn w-12 h-12 rounded-full border-2 border-transparent shadow"
+          data-index="3"
+        ></div>
+        <div
+          class="palette-btn w-12 h-12 rounded-full border-2 border-transparent shadow"
+          data-index="4"
+        ></div>
+      </div>
+      <input
+        type="color"
+        id="hidden-picker"
+        class="opacity-0 absolute pointer-events-none"
+      />
+      <canvas id="app" class="touch-none"></canvas>
       <script type="module" src="/src/main.ts"></script>
-    </dev>
+    </div>
   </body>
 </html>
