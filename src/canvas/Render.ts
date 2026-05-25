@@ -29,13 +29,13 @@ export class Renderer {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.setTransform(camera.zoom, 0, 0, camera.zoom, camera.x, camera.y);
 
-    this.ctx.fillStyle = currentColor;
-
     for (const stroke of strokes) {
-      this.drawPerfectStroke(stroke);
+      this.ctx.fillStyle = stroke.color;
+      this.drawPerfectStroke(stroke.points);
     }
 
     if (currentStroke.length > 0) {
+      this.ctx.fillStyle = currentColor;
       this.drawPerfectStroke(currentStroke);
     }
   };

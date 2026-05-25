@@ -1,12 +1,12 @@
-import type { Camera, Point } from "../type";
+import type { Camera, Point, Stroke } from "../type";
 
 export class State {
-  public strokes: Point[][] = [];
+  public strokes: Stroke[] = [];
   public currentStroke: Point[] = [];
-  public history: Point[][] = [];
+  public history: Stroke[] = [];
 
   public camera: Camera = { x: 0, y: 0, zoom: 1 };
-  public currentColor: string = "#ef4444";
+  public currentColor: string = "#ebdbb2";
 
   public onUpdate: () => void = () => {};
 
@@ -17,7 +17,10 @@ export class State {
 
   public endStroke() {
     if (this.currentStroke.length > 0) {
-      this.strokes.push([...this.currentStroke]);
+      this.strokes.push({
+        points: [...this.currentStroke],
+        color: this.currentColor,
+      });
       this.currentStroke = [];
       this.history = [];
       this.onUpdate();
