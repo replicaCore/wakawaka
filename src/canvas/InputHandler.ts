@@ -3,6 +3,7 @@ import type { State } from "../core/State";
 export class InputHandler {
   private isDrawing = false;
   private isPanning = false;
+  private isSpacePressed = false;
   private lastPanPoint = { x: 0, y: 0 };
   private canvas: HTMLCanvasElement;
   private state: State;
@@ -23,9 +24,13 @@ export class InputHandler {
 
   private setupEvents() {
     this.canvas.addEventListener("pointerdown", (e) => {
-      if (e.pointerType === "touch" || e.button === 1) {
+      if (e.pointerType === "touch" || e.button === 1 || this.isSpacePressed) {
         this.isPanning = true;
         this.lastPanPoint = { x: e.clientX, y: e.clientY };
+
+        if (this.isSpacePressed) {
+          this.canvas.style.cursor = "grabbing";
+        }
         return;
       }
 
@@ -65,6 +70,12 @@ export class InputHandler {
     window.addEventListener("pointerup", () => {
       this.isPanning = false;
 
+      if (this.isSpacePressed) {
+        this.canvas.style.cursor = "grub";
+      } else {
+        this.canvas.style.cursor = "";
+      }
+
       if (this.isDrawing) {
         this.isDrawing = false;
         this.state.endStroke();
@@ -84,6 +95,20 @@ export class InputHandler {
       },
       { passive: false },
     );
+
+    document.addEventListener("keydown", (e) => {
+      if (e.code === "Space" && !this.isSpacePressed) {
+        this.isSpacePressed = true;
+        this.canvas.style.cursor = "grab";
+      }
+    });
+
+    document.addEventListener("keyup", (e) => {
+      if (e.code === "Space") {
+        this.isSpacePressed = false;
+        this.canvas.style.cursor = "grab";
+      }
+    });
   }
 
   private zoomCamera(clientX: number, clientY: number, zoomFactor: number) {
