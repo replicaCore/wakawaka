@@ -5,6 +5,7 @@ export type Camera = { x: number; y: number; zoom: number };
 export type Stroke = { points: Point[]; color: string; pen: PenOptions };
 
 export type PenOptions = {
+  icon: string;
   size: number;
   thinning: number;
   smoothing: number;

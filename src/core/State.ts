@@ -28,6 +28,14 @@ export class State {
   public onUIUpdate: () => void = () => {};
   public eraserMode: "partial" | "stroke" = "partial";
 
+  private uiListeners: (() => void)[] = [];
+  public subscribeUI(fn: () => void) {
+    this.uiListeners.push(fn);
+  }
+  public triggerUIUpdate() {
+    this.uiListeners.forEach((fn) => fn());
+  }
+
   public saveHistory() {
     this.history.push(JSON.parse(JSON.stringify(this.strokes)));
     this.redoHistory = [];
@@ -84,12 +92,12 @@ export class State {
 
   public setPen(index: number) {
     this.currentPen = this.pens[index];
-    this.onUIUpdate();
+    this.triggerUIUpdate();
   }
 
   public setEraserMode(mode: "partial" | "stroke") {
     this.eraserMode = mode;
-    this.onUIUpdate();
+    this.triggerUIUpdate();
   }
 
   public endStroke() {
@@ -123,6 +131,6 @@ export class State {
 
   public setColor(color: string) {
     this.currentColor = color;
-    this.onUIUpdate();
+    this.triggerUIUpdate();
   }
 }
