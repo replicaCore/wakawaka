@@ -5,6 +5,7 @@
 .palette-btn {
   position: relative;
   overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .palette-btn::after {

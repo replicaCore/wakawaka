@@ -73,7 +73,7 @@ export class InputHandler {
       this.isPanning = false;
 
       if (this.isSpacePressed) {
-        this.canvas.style.cursor = "grub";
+        this.canvas.style.cursor = "grab";
       } else {
         this.canvas.style.cursor = "";
       }
