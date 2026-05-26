@@ -23,11 +23,25 @@ export class Renderer {
   }
 
   public render = () => {
-    const { camera, strokes, currentStroke, currentColor, currentPen } =
-      this.state;
+    const {
+      camera,
+      strokes,
+      currentStroke,
+      currentColor,
+      currentPen,
+      backgroundColor,
+      // invertColors,
+    } = this.state;
+
+    // this.canvas.style.filter = invertColors
+    //   ? "invert(1) hue-rotate(180deg)"
+    //   : "none";
 
     this.ctx.resetTransform();
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+    this.ctx.fillStyle = backgroundColor;
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
     this.ctx.setTransform(camera.zoom, 0, 0, camera.zoom, camera.x, camera.y);
 
     for (const stroke of strokes) {

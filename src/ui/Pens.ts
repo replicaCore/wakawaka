@@ -1,58 +1,41 @@
 import type { State } from "../core/State";
 
 export class Pens {
-  private buttons: NodeListOf<HTMLElement>;
-  private activeIndex = 0;
-  private state: State;
-  private slider: HTMLInputElement;
+  private container: HTMLDivElement;
   private eraserBtn: HTMLButtonElement;
+  private icons = ["🖋️", "🖊️", "🖌️", "✏️", "🖍️", "🧽", "✨", "🔥"];
+  private state: State;
 
   constructor(state: State) {
     this.state = state;
-    this.buttons = document.querySelectorAll(".pen-btn");
-    this.slider = document.getElementById(
-      "pen-size-slider",
-    ) as HTMLInputElement;
+    this.container = document.getElementById(
+      "pens-container",
+    ) as HTMLDivElement;
     this.eraserBtn = document.getElementById(
       "eraser-mode-btn",
     ) as HTMLButtonElement;
 
-    this.setupEvents();
-    this.updateActiveUI();
-  }
-
-  private setupEvents() {
-    this.buttons.forEach((btn, index) => {
-      btn.addEventListener("click", () => {
-        this.activeIndex = index;
-        this.state.setPen(index);
-        this.updateActiveUI();
-      });
-    });
-
-    this.slider.addEventListener("input", (e) => {
-      const val = Number((e.target as HTMLInputElement).value);
-      this.state.setPenSize(val);
-    });
+    this.state.onUIUpdate = () => this.render();
 
     this.eraserBtn.addEventListener("click", () => {
-      const newMode =
-        this.state.eraserMode === "partial" ? "stroke" : "partial";
-      this.state.setEraserMode(newMode);
-      this.updateActiveUI();
+      this.state.setEraserMode(
+        this.state.eraserMode === "partial" ? "stroke" : "partial",
+      );
     });
+
+    this.render();
   }
 
-  private updateActiveUI() {
-    this.buttons.forEach((btn, i) => {
-      if (i === this.activeIndex) {
-        btn.classList.add("bg-blue-100", "shadow-inner");
-      } else {
-        btn.classList.remove("bg-blue-100", "shadow-inner");
-      }
-    });
+  public render() {
+    this.container.innerHTML = ""; // Очищаем
 
-    this.slider.value = this.state.currentPen.size.toString();
+    this.state.pens.forEach((pen, i) => {
+      const btn = document.createElement("button");
+      btn.className = `w-10 h-10 rounded-xl transition-transform active:scale-95 ${this.state.currentPen === pen ? "bg-blue-100 shadow-inner" : ""}`;
+      btn.innerText = pen.isEraser ? "🧽" : this.icons[i] || "🖌️";
+      btn.onclick = () => this.state.setPen(i);
+      this.container.appendChild(btn);
+    });
 
     if (this.state.currentPen.isEraser) {
       this.eraserBtn.classList.remove("hidden");
