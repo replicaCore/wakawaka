@@ -5,12 +5,16 @@ export class InputHandler {
   private isPanning = false;
   private isSpacePressed = false;
   private lastPanPoint = { x: 0, y: 0 };
+  private cursorCircle: HTMLDivElement;
   private canvas: HTMLCanvasElement;
   private state: State;
 
   constructor(canvas: HTMLCanvasElement, state: State) {
     this.canvas = canvas;
     this.state = state;
+    this.cursorCircle = document.getElementById(
+      "cursor-circle",
+    ) as HTMLDivElement;
     this.setupEvents();
   }
 
@@ -38,11 +42,14 @@ export class InputHandler {
       this.isDrawing = true;
       const worldPt = this.getScreenToWorld(e.clientX, e.clientY);
 
-      if (
-        this.state.currentPen.isEraser &&
-        this.state.eraserMode === "stroke"
-      ) {
-        this.state.eraseStrokeAt(worldPt);
+      if (this.state.currentPen.isEraser) {
+        this.state.saveHistory();
+
+        if (this.state.eraserMode === "stroke") {
+          this.state.eraseStrokeAt(worldPt);
+        } else {
+          this.state.erasePartialAt(worldPt);
+        }
       } else {
         this.state.addPoint({
           x: worldPt.x,
@@ -53,6 +60,15 @@ export class InputHandler {
     });
 
     this.canvas.addEventListener("pointermove", (e) => {
+      if (e.pointerType !== "touch") {
+        this.cursorCircle.classList.remove("hidden");
+        const visualSize = this.state.currentPen.size * this.state.camera.zoom;
+        this.cursorCircle.style.width = `${visualSize}px`;
+        this.cursorCircle.style.height = `${visualSize}px`;
+        this.cursorCircle.style.left = `${e.clientX}px`;
+        this.cursorCircle.style.top = `${e.clientY}px`;
+      }
+
       if (this.isPanning) {
         const dx = e.clientX - this.lastPanPoint.x;
         const dy = e.clientY - this.lastPanPoint.y;
@@ -69,11 +85,12 @@ export class InputHandler {
 
       const worldPt = this.getScreenToWorld(e.clientX, e.clientY);
 
-      if (
-        this.state.currentPen.isEraser &&
-        this.state.eraserMode === "stroke"
-      ) {
-        this.state.eraseStrokeAt(worldPt);
+      if (this.state.currentPen.isEraser) {
+        if (this.state.eraserMode === "stroke") {
+          this.state.eraseStrokeAt(worldPt);
+        } else {
+          this.state.erasePartialAt(worldPt);
+        }
       } else {
         this.state.addPoint({
           x: worldPt.x,
@@ -81,6 +98,10 @@ export class InputHandler {
           pressure: e.pressure || 0.5,
         });
       }
+    });
+
+    this.canvas.addEventListener("pointerleave", () => {
+      this.cursorCircle.classList.add("hidden");
     });
 
     window.addEventListener("pointerup", () => {
@@ -95,7 +116,9 @@ export class InputHandler {
 
       if (this.isDrawing) {
         this.isDrawing = false;
-        this.state.endStroke();
+        if (!this.state.currentPen.isEraser) {
+          this.state.endStroke();
+        }
       }
     });
 
@@ -103,12 +126,17 @@ export class InputHandler {
       "wheel",
       (e) => {
         e.preventDefault();
-
         const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
         const centerX = window.innerWidth / 2;
         const centerY = window.innerHeight / 2;
-
         this.zoomCamera(centerX, centerY, zoomFactor);
+
+        if (!this.cursorCircle.classList.contains("hidden")) {
+          const visualSize =
+            this.state.currentPen.size * this.state.camera.zoom;
+          this.cursorCircle.style.width = `${visualSize}px`;
+          this.cursorCircle.style.height = `${visualSize}px`;
+        }
       },
       { passive: false },
     );

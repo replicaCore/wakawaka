@@ -44,9 +44,7 @@ export class Renderer {
   private drawPerfectStroke(points: Point[], penOption: PenOptions) {
     if (points.length === 0) return;
 
-    if (penOption.isEraser) {
-      this.ctx.globalCompositeOperation = "destination-out";
-    } else if (penOption.isMarker) {
+    if (penOption.isMarker) {
       this.ctx.globalAlpha = 0.4;
     }
 
