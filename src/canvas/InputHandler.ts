@@ -38,11 +38,18 @@ export class InputHandler {
       this.isDrawing = true;
       const worldPt = this.getScreenToWorld(e.clientX, e.clientY);
 
-      this.state.addPoint({
-        x: worldPt.x,
-        y: worldPt.y,
-        pressure: e.pressure || 0.5,
-      });
+      if (
+        this.state.currentPen.isEraser &&
+        this.state.eraserMode === "stroke"
+      ) {
+        this.state.eraseStrokeAt(worldPt);
+      } else {
+        this.state.addPoint({
+          x: worldPt.x,
+          y: worldPt.y,
+          pressure: e.pressure || 0.5,
+        });
+      }
     });
 
     this.canvas.addEventListener("pointermove", (e) => {
@@ -61,11 +68,19 @@ export class InputHandler {
       if (!this.isDrawing) return;
 
       const worldPt = this.getScreenToWorld(e.clientX, e.clientY);
-      this.state.addPoint({
-        x: worldPt.x,
-        y: worldPt.y,
-        pressure: e.pressure || 0.5,
-      });
+
+      if (
+        this.state.currentPen.isEraser &&
+        this.state.eraserMode === "stroke"
+      ) {
+        this.state.eraseStrokeAt(worldPt);
+      } else {
+        this.state.addPoint({
+          x: worldPt.x,
+          y: worldPt.y,
+          pressure: e.pressure || 0.5,
+        });
+      }
     });
 
     window.addEventListener("pointerup", () => {

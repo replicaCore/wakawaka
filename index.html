@@ -9,41 +9,132 @@
   </head>
   <body class="overflow-hidden w-screen h-screen m-0 p-0">
     <div>
-      <div
-        id="UI"
-        class="absolute top-0 left-0 z-10 w-full flex gap-2 items-center p-2 pointer-events-none"
-      >
-        <div id="UI button" class="pointer-events-auto">
-          <button id="undo" class="w-12 h-12 bg-blue-50 text-cyan-100">
-            
-          </button>
-          <button id="redo" class="w-12 h-12 bg-blue-50 text-cyan-100">
-            󰑏
-          </button>
-        </div>
-        <div id="UI palette" class="flex ml-auto gap-2 pointer-events-auto">
+      <div id="UI" class="absolute inset-0 z-10 pointer-events-none">
+        <div class="flex justify-between items-start p-4 w-full">
+          <div id="UI button" class="flex gap-2 pointer-events-auto">
+            <button
+              id="undo"
+              class="w-12 h-12 bg-blue-50 text-cyan-500 rounded-xl shadow-sm"
+            >
+              
+            </button>
+            <button
+              id="redo"
+              class="w-12 h-12 bg-blue-50 text-cyan-500 rounded-xl shadow-sm scale-x-[-1] inline-block"
+            >
+              
+            </button>
+          </div>
+
           <div
-            class="palette-btn w-12 h-12 rounded-full border-2 border-b-neutral-100"
+            id="UI button"
+            class="absolute flex gap-2 right-4 bottom-4 pointer-events-auto"
+          >
+            <button
+              id="undo"
+              class="w-12 h-12 bg-blue-50 text-cyan-500 rounded-xl shadow-sm"
+            >
+              
+            </button>
+            <button
+              id="redo"
+              class="w-12 h-12 bg-blue-50 text-cyan-500 rounded-xl shadow-sm scale-x-[-1] inline-block"
+            >
+              
+            </button>
+          </div>
+
+          <div
+            id="UI pens"
+            class="flex gap-2 pointer-events-auto bg-white/80 p-1.5 rounded-2xl shadow-sm backdrop-blur-sm items-center"
+          >
+            <button
+              class="pen-btn w-10 h-10 rounded-xl"
+              data-index="0"
+              title="Перьевая"
+            >
+              🖋️
+            </button>
+            <button
+              class="pen-btn w-10 h-10 rounded-xl"
+              data-index="1"
+              title="Шариковая"
+            >
+              🖊️
+            </button>
+            <button
+              class="pen-btn w-10 h-10 rounded-xl"
+              data-index="2"
+              title="Фломастер"
+            >
+              🖌️
+            </button>
+            <button
+              class="pen-btn w-10 h-10 rounded-xl"
+              data-index="3"
+              title="Карандаш"
+            >
+              ✏️
+            </button>
+            <button
+              class="pen-btn w-10 h-10 rounded-xl"
+              data-index="4"
+              title="Маркер"
+            >
+              🖍️
+            </button>
+            <button
+              class="pen-btn w-10 h-10 rounded-xl"
+              data-index="5"
+              title="Ластик"
+            >
+              🧽
+            </button>
+            <div class="w-px h-6 bg-gray-300 mx-1"></div>
+            <input
+              type="range"
+              id="pen-size-slider"
+              min="1"
+              max="100"
+              class="w-20 cursor-pointer"
+            />
+
+            <button
+              id="eraser-mode-btn"
+              class="hidden text-xs bg-gray-200 text-gray-700 font-medium rounded px-2 py-2 hover:bg-gray-300"
+            >
+              Частично
+            </button>
+          </div>
+        </div>
+
+        <div
+          id="UI palette"
+          class="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-3 pointer-events-auto bg-white/80 p-2 rounded-full shadow-sm backdrop-blur-sm"
+        >
+          <div
+            class="palette-btn w-10 h-10 rounded-full shadow-sm"
             data-index="0"
           ></div>
           <div
-            class="palette-btn w-12 h-12 rounded-full border-2 border-b-neutral-100"
+            class="palette-btn w-10 h-10 rounded-full shadow-sm"
             data-index="1"
           ></div>
           <div
-            class="palette-btn w-12 h-12 rounded-full border-2 border-b-neutral-100"
+            class="palette-btn w-10 h-10 rounded-full shadow-sm"
             data-index="2"
           ></div>
           <div
-            class="palette-btn w-12 h-12 rounded-full border-2 border-b-neutral-100"
+            class="palette-btn w-10 h-10 rounded-full shadow-sm"
             data-index="3"
           ></div>
           <div
-            class="palette-btn w-12 h-12 rounded-full border-2 border-b-neutral-100"
+            class="palette-btn w-10 h-10 rounded-full shadow-sm"
             data-index="4"
           ></div>
         </div>
       </div>
+
       <div id="canvas-container" class="absolute top-0 left-0 w-full h-full">
         <canvas id="app" class="touch-none w-full h-full block"></canvas>
       </div>
