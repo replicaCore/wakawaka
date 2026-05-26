@@ -1,11 +1,15 @@
 import type { Camera, PenOptions, Point, Stroke } from "../type";
 import { PEN_PRESETS } from "./State-const";
+import { pointInPolygon } from "../utils";
 
 export class State {
   public strokes: Stroke[] = [];
   public currentStroke: Point[] = [];
   public history: Stroke[][] = [];
   public redoHistory: Stroke[][] = [];
+
+  public selectedStrokes: Set<Stroke> = new Set();
+  public lassoPath: Point[] = [];
 
   public camera: Camera = { x: 0, y: 0, zoom: 1 };
 
@@ -92,6 +96,8 @@ export class State {
 
   public setPen(index: number) {
     this.currentPen = this.pens[index];
+    this.selectedStrokes.clear();
+    this.onUpdate();
     this.triggerUIUpdate();
   }
 
@@ -132,5 +138,57 @@ export class State {
   public setColor(color: string) {
     this.currentColor = color;
     this.triggerUIUpdate();
+  }
+
+  // НОВОЕ: Проверка, кликнули ли мы внутрь текущего выделения
+  public isPointInSelectionBox(pt: Point): boolean {
+    if (this.selectedStrokes.size === 0) return false;
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+
+    for (const stroke of this.selectedStrokes) {
+      const padding = stroke.pen.size / 2 + 5;
+      for (const p of stroke.points) {
+        if (p.x - padding < minX) minX = p.x - padding;
+        if (p.y - padding < minY) minY = p.y - padding;
+        if (p.x + padding > maxX) maxX = p.x + padding;
+        if (p.y + padding > maxY) maxY = p.y + padding;
+      }
+    }
+
+    return pt.x >= minX && pt.x <= maxX && pt.y >= minY && pt.y <= maxY;
+  }
+
+  public finishLasso() {
+    if (this.lassoPath.length < 3) {
+      this.lassoPath = [];
+      this.selectedStrokes.clear();
+      this.onUpdate();
+      return;
+    }
+
+    this.selectedStrokes.clear();
+    for (const stroke of this.strokes) {
+      for (const p of stroke.points) {
+        if (pointInPolygon(p, this.lassoPath)) {
+          this.selectedStrokes.add(stroke);
+          break;
+        }
+      }
+    }
+    this.lassoPath = [];
+    this.onUpdate();
+  }
+
+  public moveSelected(dx: number, dy: number) {
+    for (const stroke of this.selectedStrokes) {
+      for (const p of stroke.points) {
+        p.x += dx;
+        p.y += dy;
+      }
+    }
+    this.onUpdate();
   }
 }

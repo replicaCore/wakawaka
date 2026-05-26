@@ -26,3 +26,22 @@ export function getSvgPathFromStroke(points: number[][], closed = true) {
   if (closed) result += "Z";
   return result;
 }
+
+export function pointInPolygon(
+  pt: { x: number; y: number },
+  polygon: { x: number; y: number }[],
+) {
+  let isInside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].x,
+      yi = polygon[i].y;
+    const xj = polygon[j].x,
+      yj = polygon[j].y;
+
+    const intersect =
+      yi > pt.y !== yj > pt.y &&
+      pt.x < ((xj - xi) * (pt.y - yi)) / (yj - yi) + xi;
+    if (intersect) isInside = !isInside;
+  }
+  return isInside;
+}

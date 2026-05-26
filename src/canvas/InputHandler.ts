@@ -4,6 +4,11 @@ export class InputHandler {
   private isDrawing = false;
   private isPanning = false;
   private isSpacePressed = false;
+
+  private isDrawingLasso = false;
+  private isDraggingSelection = false;
+  private lastDragWorldPt = { x: 0, y: 0 };
+
   private lastPanPoint = { x: 0, y: 0 };
   private cursorCircle: HTMLDivElement;
   private canvas: HTMLCanvasElement;
@@ -39,12 +44,27 @@ export class InputHandler {
         return;
       }
 
-      this.isDrawing = true;
       const worldPt = this.getScreenToWorld(e.clientX, e.clientY);
 
+      if (this.state.currentPen.isSelector) {
+        if (this.state.isPointInSelectionBox(worldPt)) {
+          this.isDraggingSelection = true;
+          this.lastDragWorldPt = worldPt;
+          this.state.saveHistory();
+        } else {
+          this.state.selectedStrokes.clear();
+          this.isDrawingLasso = true;
+          this.state.lassoPath = [
+            { x: worldPt.x, y: worldPt.y, pressure: e.pressure || 0.5 },
+          ];
+          this.state.onUpdate();
+        }
+        return;
+      }
+
+      this.isDrawing = true;
       if (this.state.currentPen.isEraser) {
         this.state.saveHistory();
-
         if (this.state.eraserMode === "stroke") {
           this.state.eraseStrokeAt(worldPt);
         } else {
@@ -60,13 +80,15 @@ export class InputHandler {
     });
 
     this.canvas.addEventListener("pointermove", (e) => {
-      if (e.pointerType !== "touch") {
+      if (e.pointerType !== "touch" && !this.state.currentPen.isSelector) {
         this.cursorCircle.classList.remove("hidden");
         const visualSize = this.state.currentPen.size * this.state.camera.zoom;
         this.cursorCircle.style.width = `${visualSize}px`;
         this.cursorCircle.style.height = `${visualSize}px`;
         this.cursorCircle.style.left = `${e.clientX}px`;
         this.cursorCircle.style.top = `${e.clientY}px`;
+      } else {
+        this.cursorCircle.classList.add("hidden");
       }
 
       if (this.isPanning) {
@@ -81,9 +103,27 @@ export class InputHandler {
         return;
       }
 
-      if (!this.isDrawing) return;
-
       const worldPt = this.getScreenToWorld(e.clientX, e.clientY);
+
+      if (this.isDrawingLasso) {
+        this.state.lassoPath.push({
+          x: worldPt.x,
+          y: worldPt.y,
+          pressure: e.pressure || 0.5,
+        });
+        this.state.onUpdate();
+        return;
+      }
+
+      if (this.isDraggingSelection) {
+        const dx = worldPt.x - this.lastDragWorldPt.x;
+        const dy = worldPt.y - this.lastDragWorldPt.y;
+        this.state.moveSelected(dx, dy);
+        this.lastDragWorldPt = worldPt;
+        return;
+      }
+
+      if (!this.isDrawing) return;
 
       if (this.state.currentPen.isEraser) {
         if (this.state.eraserMode === "stroke") {
@@ -108,6 +148,12 @@ export class InputHandler {
       document.body.classList.remove("canvas-active");
       this.isPanning = false;
 
+      if (this.isDrawingLasso) {
+        this.isDrawingLasso = false;
+        this.state.finishLasso();
+      }
+      this.isDraggingSelection = false;
+
       if (this.isSpacePressed) {
         this.canvas.style.cursor = "grab";
       } else {
@@ -116,7 +162,10 @@ export class InputHandler {
 
       if (this.isDrawing) {
         this.isDrawing = false;
-        if (!this.state.currentPen.isEraser) {
+        if (
+          !this.state.currentPen.isEraser &&
+          !this.state.currentPen.isSelector
+        ) {
           this.state.endStroke();
         }
       }
