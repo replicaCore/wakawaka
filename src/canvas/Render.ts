@@ -1,4 +1,3 @@
-// src/canvas/Render.ts
 import { getStroke } from "perfect-freehand";
 import { getSvgPathFromStroke } from "../utils";
 import type { State } from "../core/State";

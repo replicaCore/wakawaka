@@ -22,3 +22,15 @@ export type PenOptions = {
   isEraser?: boolean;
   isSelector?: boolean;
 };
+
+export type Project = {
+  id: string; // Уникальный ID проекта
+  name: string; // Имя
+  thumbnail: string; // Картинка превью (Base64)
+  updatedAt: number; // Время последнего изменения
+
+  // Данные холста
+  strokes: Stroke[];
+  backgroundColor: string;
+  camera: Camera;
+};

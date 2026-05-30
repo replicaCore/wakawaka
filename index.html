@@ -4,49 +4,67 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>canvas</title>
+    <title>Canvas Hub</title>
     <link rel="stylesheet" href="/src/style.css" />
   </head>
-  <body class="overflow-hidden w-screen h-screen m-0 p-0">
-    <div>
-      <div id="UI" class="absolute inset-0 z-10 pointer-events-none">
-        <div class="flex justify-between items-start p-4 w-full">
-          <div id="UI button" class="flex gap-2 pointer-events-auto">
-            <button
-              id="undo"
-              class="w-12 h-12 bg-blue-50 text-cyan-500 rounded-xl shadow-sm"
-            >
-              
-            </button>
-            <button
-              id="redo"
-              class="w-12 h-12 bg-blue-50 text-cyan-500 rounded-xl shadow-sm scale-x-[-1] inline-block"
-            >
-              
-            </button>
-          </div>
+  <body
+    class="overflow-hidden w-screen h-screen m-0 p-0 bg-gray-50 text-gray-800"
+  >
+    <div
+      id="hub-screen"
+      class="w-full h-full p-6 overflow-y-auto absolute inset-0 z-50 bg-gray-50 flex flex-col"
+    >
+      <div
+        class="flex justify-between items-center mb-8 max-w-5xl mx-auto w-full"
+      >
+        <h1 class="text-3xl font-bold">Мои холсты</h1>
+        <button
+          id="new-project-btn"
+          class="bg-blue-500 hover:bg-blue-600 text-white px-5 py-3 rounded-2xl font-bold shadow-sm transition-colors"
+        >
+          + Новый холст
+        </button>
+      </div>
 
+      <div
+        id="projects-grid"
+        class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6 max-w-5xl mx-auto w-full pb-10"
+      ></div>
+    </div>
+
+    <div id="editor-screen" class="hidden w-full h-full absolute inset-0">
+      <button
+        id="back-to-hub-btn"
+        class="absolute top-4 left-4 z-20 bg-white/80 hover:bg-white backdrop-blur-sm px-4 py-3 rounded-2xl shadow-sm font-bold text-gray-700 pointer-events-auto transition-colors"
+      >
+        &larr; В галерею
+      </button>
+
+      <!-- Старый UI (Тулбары, настройки и т.д.) -->
+      <div id="UI" class="absolute inset-0 z-10 pointer-events-none">
+        <div class="flex justify-center items-start p-4 w-full">
+          <!-- Кнопки Undo/Redo выровнены по центру, чтобы не мешать кнопке "Назад" -->
           <div
             id="UI button"
-            class="absolute flex gap-2 right-4 bottom-4 pointer-events-auto"
+            class="flex gap-2 pointer-events-auto mr-auto ml-32"
           >
             <button
               id="undo"
-              class="w-12 h-12 bg-blue-50 text-cyan-500 rounded-xl shadow-sm"
+              class="w-12 h-12 bg-blue-50 text-cyan-500 rounded-xl shadow-sm font-bold"
             >
-              
+              U
             </button>
             <button
               id="redo"
-              class="w-12 h-12 bg-blue-50 text-cyan-500 rounded-xl shadow-sm scale-x-[-1] inline-block"
+              class="w-12 h-12 bg-blue-50 text-cyan-500 rounded-xl shadow-sm font-bold"
             >
-              
+              R
             </button>
           </div>
 
           <div
             id="UI pens"
-            class="flex gap-2 pointer-events-auto bg-white/80 p-1.5 rounded-2xl shadow-sm backdrop-blur-sm items-center"
+            class="flex gap-2 pointer-events-auto bg-white/80 p-1.5 rounded-2xl shadow-sm backdrop-blur-sm items-center ml-auto"
           >
             <div id="pens-container" class="flex gap-2"></div>
             <div class="w-px h-6 bg-gray-300 mx-1"></div>
@@ -57,14 +75,12 @@
               max="100"
               class="w-20 cursor-pointer"
             />
-
             <button
               id="settings-open-btn"
               class="w-10 h-10 rounded-xl hover:bg-gray-200 transition-colors"
             >
               ⚙️
             </button>
-
             <button
               id="eraser-mode-btn"
               class="hidden text-xs bg-gray-200 text-gray-700 font-medium rounded px-2 py-2 hover:bg-gray-300 ml-1"
@@ -80,6 +96,7 @@
         ></div>
       </div>
 
+      <!-- Модалка настроек (Осталась как есть) -->
       <div
         id="settings-modal"
         class="hidden absolute inset-0 bg-black/40 z-50 pointer-events-auto flex items-center justify-center backdrop-blur-sm"
@@ -96,7 +113,6 @@
               ✕
             </button>
           </div>
-
           <div class="flex border-b bg-gray-50">
             <button
               class="settings-tab flex-1 py-2 border-b-2 border-blue-500 font-semibold"
@@ -117,11 +133,11 @@
               Цвета
             </button>
           </div>
-
           <div id="settings-content" class="p-4 overflow-y-auto flex-1"></div>
         </div>
       </div>
 
+      <!-- Холст -->
       <div id="canvas-container" class="absolute top-0 left-0 w-full h-full">
         <canvas id="app" class="touch-none w-full h-full block"></canvas>
       </div>
@@ -136,6 +152,7 @@
         style="transform: translate(-50%, -50%)"
       ></div>
     </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

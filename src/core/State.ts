@@ -1,9 +1,18 @@
 // src/core/State.ts
-import type { Camera, Coordinate, PenOptions, Point, Stroke } from "../type";
+import type {
+  Camera,
+  Coordinate,
+  PenOptions,
+  Point,
+  Project,
+  Stroke,
+} from "../type";
 import { PEN_PRESETS } from "./State-const";
 import { pointInPolygon } from "../utils";
 
 export class State {
+  public currentProjectId: string | null = null;
+  public currentProjectName: string = "Новый холст";
   public strokes: Stroke[] = [];
   public currentStroke: Point[] = [];
   public history: Stroke[][] = [];
@@ -315,5 +324,43 @@ export class State {
 
     this.onUpdate();
     this.triggerUIUpdate();
+  }
+
+  public loadProject(project: Project | null) {
+    if (project) {
+      this.currentProjectId = project.id;
+      this.currentProjectName = project.name;
+      this.strokes = project.strokes || [];
+      this.backgroundColor = project.backgroundColor || "#000000";
+      this.camera = project.camera || { x: 0, y: 0, zoom: 1 };
+    } else {
+      // Чистый холст
+      this.currentProjectId = Date.now().toString(); // Новый ID
+      this.currentProjectName =
+        "Новый проект " + new Date().toLocaleTimeString();
+      this.strokes = [];
+      this.backgroundColor = "#000000";
+      this.camera = { x: 0, y: 0, zoom: 1 };
+    }
+
+    // Сбрасываем выделения и историю
+    this.history = [];
+    this.redoHistory = [];
+    this.selectedStrokes.clear();
+    this.lassoPath = [];
+
+    this.onUpdate(); // Перерисовываем холст
+    this.triggerUIUpdate();
+  }
+
+  // НОВОЕ: Получить данные для сохранения
+  public getProjectData() {
+    return {
+      id: this.currentProjectId!,
+      name: this.currentProjectName,
+      strokes: this.strokes,
+      backgroundColor: this.backgroundColor,
+      camera: this.camera,
+    };
   }
 }
