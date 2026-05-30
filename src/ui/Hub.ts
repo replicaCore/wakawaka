@@ -1,11 +1,13 @@
 // src/ui/Hub.ts
 import type { Database } from "../canvas/Database";
 import type { State } from "../core/State";
+import type { Project } from "../type";
 
 export class Hub {
   private db: Database;
   private state: State;
-  private canvas: HTMLCanvasElement; // Нужен для создания скриншота
+  private canvas: HTMLCanvasElement;
+  private autosaveTimer: number | null = null; // НОВОЕ: Таймер автосохранения
 
   private hubScreen = document.getElementById("hub-screen") as HTMLDivElement;
   private editorScreen = document.getElementById(
@@ -24,17 +26,111 @@ export class Hub {
     document
       .getElementById("back-to-hub-btn")
       ?.addEventListener("click", () => this.saveAndGoToHub());
+  }
 
+  // НОВОЕ: Инициализация с поддержкой Deep Linking
+  public async init() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const projectId = urlParams.get("id");
+
+    if (projectId) {
+      const proj = await this.db.getProject(projectId);
+      if (proj) {
+        this.openProject(proj);
+        return; // Если нашли проект — сразу открываем холст
+      }
+    }
+
+    // Если id нет или проект не найден — показываем хаб
+    this.showHub();
     this.renderGrid();
   }
 
-  // Отрисовка списка проектов
+  // НОВОЕ: Вызов автосохранения из main.ts (debounce 3 секунды)
+  public triggerAutosave() {
+    if (!this.state.currentProjectId) return;
+    this.state.isDirty = true; // Помечаем, что есть изменения
+
+    if (this.autosaveTimer) clearTimeout(this.autosaveTimer);
+
+    this.autosaveTimer = window.setTimeout(() => {
+      this.saveCurrentProject();
+    }, 3000) as unknown as number;
+  }
+
+  // НОВОЕ: Принудительное сохранение (для выгрузки страницы)
+  public async forceSave() {
+    if (this.autosaveTimer) clearTimeout(this.autosaveTimer);
+    if (this.state.isDirty) {
+      await this.saveCurrentProject();
+    }
+  }
+
+  // НОВОЕ: Создание легкого превью (400x400)
+  private generateThumbnail(): string {
+    const tempCanvas = document.createElement("canvas");
+    const ctx = tempCanvas.getContext("2d")!;
+    const MAX_SIZE = 400; // Ограничиваем разрешение
+
+    const ratio = this.canvas.width / this.canvas.height;
+    if (ratio > 1) {
+      tempCanvas.width = MAX_SIZE;
+      tempCanvas.height = MAX_SIZE / ratio;
+    } else {
+      tempCanvas.height = MAX_SIZE;
+      tempCanvas.width = MAX_SIZE * ratio;
+    }
+
+    ctx.drawImage(this.canvas, 0, 0, tempCanvas.width, tempCanvas.height);
+    // Качество 0.6 достаточно для маленькой картинки, вес будет крошечным
+    return tempCanvas.toDataURL("image/jpeg", 0.6);
+  }
+
+  // НОВОЕ: Функция тихого сохранения в БД
+  private async saveCurrentProject() {
+    if (!this.state.currentProjectId) return;
+
+    const thumbnail = this.generateThumbnail();
+    const data = this.state.getProjectData();
+
+    await this.db.saveProject({
+      ...data,
+      thumbnail: thumbnail,
+      updatedAt: Date.now(),
+    });
+
+    this.state.isDirty = false; // Сохранено!
+  }
+
+  private async saveAndGoToHub() {
+    await this.saveCurrentProject();
+    this.showHub();
+    this.renderGrid();
+    // Очищаем URL, убирая ?id=...
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+
+  private createNewProject() {
+    this.state.loadProject(null);
+    this.showEditor();
+    // Добавляем ?id=... в URL
+    window.history.replaceState(
+      {},
+      document.title,
+      `?id=${this.state.currentProjectId}`,
+    );
+  }
+
+  private openProject(project: Project) {
+    this.state.loadProject(project);
+    this.showEditor();
+    // Добавляем ?id=... в URL
+    window.history.replaceState({}, document.title, `?id=${project.id}`);
+  }
+
   private async renderGrid() {
-    this.grid.innerHTML = ""; // Очищаем
-
+    this.grid.innerHTML = "";
     const projects = await this.db.getAllProjects();
-
-    // Сортируем по дате (сначала новые)
     projects.sort((a, b) => b.updatedAt - a.updatedAt);
 
     if (projects.length === 0) {
@@ -46,7 +142,6 @@ export class Hub {
       const card = document.createElement("div");
       card.className =
         "bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition-shadow group relative flex flex-col";
-
       const date = new Date(proj.updatedAt).toLocaleDateString();
 
       card.innerHTML = `
@@ -60,13 +155,11 @@ export class Hub {
         <button class="delete-btn absolute top-2 right-2 bg-white text-red-500 w-8 h-8 rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-red-50">✕</button>
       `;
 
-      // Клик по карточке открывает проект
       card.addEventListener("click", (e) => {
         if ((e.target as HTMLElement).closest(".delete-btn")) return;
         this.openProject(proj);
       });
 
-      // Кнопка удаления
       card
         .querySelector(".delete-btn")
         ?.addEventListener("click", async (e) => {
@@ -81,44 +174,12 @@ export class Hub {
     });
   }
 
-  // Создать новый пустой проект
-  private createNewProject() {
-    this.state.loadProject(null); // Передаем null, создастся чистый лист
-    this.showEditor();
-  }
-
-  // Открыть существующий проект
-  private openProject(project: any) {
-    this.state.loadProject(project);
-    this.showEditor();
-  }
-
-  // Сохранить текущий проект и выйти
-  private async saveAndGoToHub() {
-    // Делаем скриншот текущего состояния холста (0.2 качество для легкости базы)
-    const thumbnail = this.canvas.toDataURL("image/jpeg", 0.2);
-
-    // Получаем данные
-    const data = this.state.getProjectData();
-
-    // Сохраняем в БД
-    await this.db.saveProject({
-      ...data,
-      thumbnail: thumbnail,
-      updatedAt: Date.now(),
-    });
-
-    this.showHub();
-    this.renderGrid();
-  }
-
-  // Смена экранов
-  private showEditor() {
+  public showEditor() {
     this.hubScreen.classList.add("hidden");
     this.editorScreen.classList.remove("hidden");
   }
 
-  private showHub() {
+  public showHub() {
     this.editorScreen.classList.add("hidden");
     this.hubScreen.classList.remove("hidden");
   }

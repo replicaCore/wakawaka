@@ -1,4 +1,5 @@
 // src/main.ts
+import { Database } from "./canvas/Database";
 import { State } from "./core/State";
 import { Renderer } from "./canvas/Render";
 import { InputHandler } from "./canvas/InputHandler";
@@ -8,15 +9,20 @@ import { Pens } from "./ui/Pens";
 import { Settings } from "./ui/settings/Settings";
 import { SelectionToolbar } from "./ui/SelectionToolbar";
 import { Hub } from "./ui/Hub";
-import { Database } from "./canvas/Database";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const canvasElement = document.getElementById("app") as HTMLCanvasElement;
 
-  // Инициализация компонентов редактора (без данных)
   const state = new State();
   const renderer = new Renderer(canvasElement, state);
-  state.onUpdate = renderer.render;
+  let hub: Hub | null = null;
+
+  // НОВОЕ: Перехватываем onUpdate.
+  // Помимо отрисовки экрана, он теперь сигналит Хабу о том, что холст изменился
+  state.onUpdate = () => {
+    renderer.render();
+    if (hub) hub.triggerAutosave();
+  };
 
   new InputHandler(canvasElement, state);
   new Palette(state);
@@ -25,14 +31,30 @@ document.addEventListener("DOMContentLoaded", async () => {
   new Settings(state);
   new SelectionToolbar(state);
 
-  // Инициализация базы данных и Хаба
   const db = new Database();
   try {
     await db.init();
-    new Hub(db, state, canvasElement);
-    console.log("Canvas Database initialized!");
+    hub = new Hub(db, state, canvasElement);
+
+    // Инициализируем Хаб (он сам решит, показать меню или открыть холст по URL)
+    await hub.init();
   } catch (e) {
     console.error("Failed to init database", e);
-    alert("Критическая ошибка: браузер не поддерживает сохранение.");
+    alert("Ваш браузер не поддерживает сохранение проектов.");
   }
+
+  // БЕЗОПАСНОСТЬ: Если пользователь пытается закрыть вкладку на ПК во время сохранения
+  window.addEventListener("beforeunload", (e) => {
+    if (state.isDirty) {
+      e.preventDefault();
+      e.returnValue = "";
+    }
+  });
+
+  // БЕЗОПАСНОСТЬ ДЛЯ PWA/МОБИЛЬНЫХ: Тихое сохранение при сворачивании приложения
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden" && state.isDirty && hub) {
+      hub.forceSave();
+    }
+  });
 });

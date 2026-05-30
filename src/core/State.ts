@@ -13,6 +13,7 @@ import { pointInPolygon } from "../utils";
 export class State {
   public currentProjectId: string | null = null;
   public currentProjectName: string = "Новый холст";
+  public isDirty: boolean = false;
   public strokes: Stroke[] = [];
   public currentStroke: Point[] = [];
   public history: Stroke[][] = [];
@@ -334,8 +335,7 @@ export class State {
       this.backgroundColor = project.backgroundColor || "#000000";
       this.camera = project.camera || { x: 0, y: 0, zoom: 1 };
     } else {
-      // Чистый холст
-      this.currentProjectId = Date.now().toString(); // Новый ID
+      this.currentProjectId = Date.now().toString();
       this.currentProjectName =
         "Новый проект " + new Date().toLocaleTimeString();
       this.strokes = [];
@@ -343,13 +343,15 @@ export class State {
       this.camera = { x: 0, y: 0, zoom: 1 };
     }
 
-    // Сбрасываем выделения и историю
     this.history = [];
     this.redoHistory = [];
     this.selectedStrokes.clear();
     this.lassoPath = [];
 
-    this.onUpdate(); // Перерисовываем холст
+    // НОВОЕ: Сброс флага
+    this.isDirty = false;
+
+    this.onUpdate();
     this.triggerUIUpdate();
   }
 
