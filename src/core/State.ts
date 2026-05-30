@@ -81,7 +81,6 @@ export class State {
             newStrokes.push({
               ...stroke,
               points: currentSegment,
-              // Сохраняем членство в группе при разрезании ластиком
               groupIds: stroke.groupIds ? [...stroke.groupIds] : undefined,
             });
             currentSegment = [];
@@ -187,12 +186,10 @@ export class State {
     );
   }
 
-  public finishLasso() {
+  // НОВОЕ: Метод обновления выделения в реальном времени
+  public updateLassoSelection() {
     if (this.lassoPath.length < 3) {
-      this.lassoPath = [];
       this.selectedStrokes.clear();
-      this.onUpdate();
-      this.triggerUIUpdate();
       return;
     }
 
@@ -206,13 +203,11 @@ export class State {
       }
     }
 
-    // НОВОЕ: Автоматическое выделение всей группы, если захватили хотя бы её часть
     let expanded = true;
     while (expanded) {
       expanded = false;
       const currentTopGroups = new Set<string>();
 
-      // Собираем верхнеуровневые ID групп всех выделенных объектов
       for (const stroke of initiallySelected) {
         if (stroke.groupIds && stroke.groupIds.length > 0) {
           currentTopGroups.add(stroke.groupIds[stroke.groupIds.length - 1]);
@@ -227,7 +222,6 @@ export class State {
             stroke.groupIds.length > 0
           ) {
             const topGroup = stroke.groupIds[stroke.groupIds.length - 1];
-            // Если вектор принадлежит к выделенной группе, выделяем и его
             if (currentTopGroups.has(topGroup)) {
               initiallySelected.add(stroke);
               expanded = true;
@@ -236,14 +230,14 @@ export class State {
         }
       }
     }
-
     this.selectedStrokes = initiallySelected;
-    this.lassoPath = [];
+  }
+
+  public finishLasso() {
+    this.lassoPath = []; // Просто очищаем линию лассо, выделение уже посчитано
     this.onUpdate();
     this.triggerUIUpdate();
   }
-
-  // --- ДЕЙСТВИЯ КНОПОК ---
 
   public deleteSelection() {
     if (this.selectedStrokes.size === 0) return;
@@ -286,11 +280,9 @@ export class State {
     this.triggerUIUpdate();
   }
 
-  // НОВОЕ: Группировка
   public groupSelected() {
     if (this.selectedStrokes.size < 2) return;
     this.saveHistory();
-    // Генерируем уникальный ID для новой группы
     const newGroupId = Math.random().toString(36).substring(2, 10);
 
     for (const stroke of this.selectedStrokes) {
@@ -301,12 +293,10 @@ export class State {
     this.triggerUIUpdate();
   }
 
-  // НОВОЕ: Разгруппировка
   public ungroupSelected() {
     if (this.selectedStrokes.size === 0) return;
     this.saveHistory();
 
-    // Находим верхнеуровневые группы, которые сейчас выделены
     const topGroupsToUngroup = new Set<string>();
     for (const stroke of this.selectedStrokes) {
       if (stroke.groupIds && stroke.groupIds.length > 0) {
@@ -314,12 +304,11 @@ export class State {
       }
     }
 
-    // Удаляем эти группы у всех векторов (снимаем верхний уровень)
     for (const stroke of this.strokes) {
       if (stroke.groupIds && stroke.groupIds.length > 0) {
         const top = stroke.groupIds[stroke.groupIds.length - 1];
         if (topGroupsToUngroup.has(top)) {
-          stroke.groupIds.pop(); // Снимаем верхнюю оболочку
+          stroke.groupIds.pop();
         }
       }
     }

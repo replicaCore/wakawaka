@@ -1,7 +1,8 @@
+// src/canvas/Render.ts
 import { getStroke } from "perfect-freehand";
 import { getSvgPathFromStroke } from "../utils";
 import type { State } from "../core/State";
-import type { PenOptions, Point } from "../type";
+import type { PenOptions, Point, Stroke } from "../type";
 
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
@@ -53,6 +54,27 @@ export class Renderer {
     }
   }
 
+  // НОВОЕ: Вспомогательная функция вычисления границ для массива векторов
+  private getBoundsForStrokes(strokes: Iterable<Stroke>) {
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    let hasPoints = false;
+    for (const stroke of strokes) {
+      const padding = stroke.pen.size / 2 + 5;
+      for (const p of stroke.points) {
+        hasPoints = true;
+        if (p.x - padding < minX) minX = p.x - padding;
+        if (p.y - padding < minY) minY = p.y - padding;
+        if (p.x + padding > maxX) maxX = p.x + padding;
+        if (p.y + padding > maxY) maxY = p.y + padding;
+      }
+    }
+    if (!hasPoints) return null;
+    return { minX, minY, maxX, maxY };
+  }
+
   private drawSelectionBox() {
     if (this.state.selectedStrokes.size === 0) return;
 
@@ -63,28 +85,42 @@ export class Renderer {
       5 / this.state.camera.zoom,
     ]);
 
+    // Разделяем выделенные элементы на одиночки и группы
+    const grouped = new Map<string, Stroke[]>();
+    const individual = new Set<Stroke>();
+
     for (const stroke of this.state.selectedStrokes) {
-      if (stroke.points.length === 0) continue;
-      let minX = Infinity,
-        minY = Infinity,
-        maxX = -Infinity,
-        maxY = -Infinity;
-      const padding = stroke.pen.size / 2 + 5;
-
-      for (const p of stroke.points) {
-        if (p.x < minX) minX = p.x;
-        if (p.y < minY) minY = p.y;
-        if (p.x > maxX) maxX = p.x;
-        if (p.y > maxY) maxY = p.y;
+      if (stroke.groupIds && stroke.groupIds.length > 0) {
+        const topGroup = stroke.groupIds[stroke.groupIds.length - 1];
+        if (!grouped.has(topGroup)) {
+          grouped.set(topGroup, []);
+        }
+        grouped.get(topGroup)!.push(stroke);
+      } else {
+        individual.add(stroke);
       }
-
-      this.ctx.strokeRect(
-        minX - padding,
-        minY - padding,
-        maxX - minX + padding * 2,
-        maxY - minY + padding * 2,
-      );
     }
+
+    // Функция для отрисовки рамки по координатам
+    const drawBox = (
+      bounds: { minX: number; minY: number; maxX: number; maxY: number } | null,
+    ) => {
+      if (!bounds) return;
+      const width = bounds.maxX - bounds.minX;
+      const height = bounds.maxY - bounds.minY;
+      this.ctx.strokeRect(bounds.minX, bounds.minY, width, height);
+    };
+
+    // Рисуем рамки для каждого одиночного вектора
+    for (const stroke of individual) {
+      drawBox(this.getBoundsForStrokes([stroke]));
+    }
+
+    // Рисуем общую рамку для каждой группы
+    for (const strokes of grouped.values()) {
+      drawBox(this.getBoundsForStrokes(strokes));
+    }
+
     this.ctx.setLineDash([]);
   }
 

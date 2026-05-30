@@ -108,7 +108,7 @@ export class InputHandler {
       this.state.camera.y += e.clientY - this.lastPanPoint.y;
       this.lastPanPoint = { x: e.clientX, y: e.clientY };
       this.state.onUpdate();
-      this.state.triggerUIUpdate(); // Обязательно: UI тулбар должен двигаться за камерой!
+      this.state.triggerUIUpdate();
       return;
     }
 
@@ -120,6 +120,8 @@ export class InputHandler {
         y: worldPt.y,
         pressure: e.pressure || 0.5,
       });
+      // НОВОЕ: Пересчитываем выделение прямо во время движения
+      this.state.updateLassoSelection();
       this.state.onUpdate();
       return;
     }
@@ -132,11 +134,8 @@ export class InputHandler {
       } else if (this.state.selectionMode === "scale") {
         const bounds = this.state.getSelectionBounds();
         if (bounds) {
-          // Вычисляем центр выделения (Scale Origin)
           const cx = (bounds.minX + bounds.maxX) / 2;
           const cy = (bounds.minY + bounds.maxY) / 2;
-
-          // Высчитываем разницу дистанций курсора до центра
           const lastDist = Math.hypot(
             this.lastDragWorldPt.x - cx,
             this.lastDragWorldPt.y - cy,
@@ -144,7 +143,6 @@ export class InputHandler {
           const currentDist = Math.hypot(worldPt.x - cx, worldPt.y - cy);
 
           if (lastDist > 1) {
-            // Избегаем деления на ноль
             const scaleFactor = currentDist / lastDist;
             this.state.scaleSelected(scaleFactor, { x: cx, y: cy });
           }
