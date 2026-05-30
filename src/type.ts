@@ -4,7 +4,12 @@ export type Point = Coordinate & { pressure: number };
 
 export type Camera = { x: number; y: number; zoom: number };
 
-export type Stroke = { points: Point[]; color: string; pen: PenOptions };
+export type Stroke = {
+  points: Point[];
+  color: string;
+  pen: PenOptions;
+  groupIds?: string[];
+};
 
 export type PenOptions = {
   icon: string;

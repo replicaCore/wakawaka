@@ -12,7 +12,6 @@ export class State {
   public selectedStrokes: Set<Stroke> = new Set();
   public lassoPath: Point[] = [];
 
-  // НОВОЕ: Режим выделения (перемещение или масштабирование)
   public selectionMode: "move" | "scale" = "move";
 
   public camera: Camera = { x: 0, y: 0, zoom: 1 };
@@ -79,7 +78,12 @@ export class State {
           strokeChanged = true;
           changed = true;
           if (currentSegment.length > 0) {
-            newStrokes.push({ ...stroke, points: currentSegment });
+            newStrokes.push({
+              ...stroke,
+              points: currentSegment,
+              // Сохраняем членство в группе при разрезании ластиком
+              groupIds: stroke.groupIds ? [...stroke.groupIds] : undefined,
+            });
             currentSegment = [];
           }
         } else {
@@ -87,7 +91,11 @@ export class State {
         }
       }
       if (strokeChanged && currentSegment.length > 0) {
-        newStrokes.push({ ...stroke, points: currentSegment });
+        newStrokes.push({
+          ...stroke,
+          points: currentSegment,
+          groupIds: stroke.groupIds ? [...stroke.groupIds] : undefined,
+        });
       } else if (!strokeChanged) {
         newStrokes.push(stroke);
       }
@@ -101,7 +109,7 @@ export class State {
   public setPen(index: number) {
     this.currentPen = this.pens[index];
     this.selectedStrokes.clear();
-    this.selectionMode = "move"; // Сброс режима
+    this.selectionMode = "move";
     this.onUpdate();
     this.triggerUIUpdate();
   }
@@ -149,7 +157,6 @@ export class State {
     this.triggerUIUpdate();
   }
 
-  // НОВОЕ: Получение границ (Bounding Box) текущего выделения
   public getSelectionBounds() {
     if (this.selectedStrokes.size === 0) return null;
     let minX = Infinity,
@@ -185,25 +192,59 @@ export class State {
       this.lassoPath = [];
       this.selectedStrokes.clear();
       this.onUpdate();
-      this.triggerUIUpdate(); // Обязательно обновляем UI!
+      this.triggerUIUpdate();
       return;
     }
 
-    this.selectedStrokes.clear();
+    const initiallySelected = new Set<Stroke>();
     for (const stroke of this.strokes) {
       for (const p of stroke.points) {
         if (pointInPolygon(p, this.lassoPath)) {
-          this.selectedStrokes.add(stroke);
+          initiallySelected.add(stroke);
           break;
         }
       }
     }
+
+    // НОВОЕ: Автоматическое выделение всей группы, если захватили хотя бы её часть
+    let expanded = true;
+    while (expanded) {
+      expanded = false;
+      const currentTopGroups = new Set<string>();
+
+      // Собираем верхнеуровневые ID групп всех выделенных объектов
+      for (const stroke of initiallySelected) {
+        if (stroke.groupIds && stroke.groupIds.length > 0) {
+          currentTopGroups.add(stroke.groupIds[stroke.groupIds.length - 1]);
+        }
+      }
+
+      if (currentTopGroups.size > 0) {
+        for (const stroke of this.strokes) {
+          if (
+            !initiallySelected.has(stroke) &&
+            stroke.groupIds &&
+            stroke.groupIds.length > 0
+          ) {
+            const topGroup = stroke.groupIds[stroke.groupIds.length - 1];
+            // Если вектор принадлежит к выделенной группе, выделяем и его
+            if (currentTopGroups.has(topGroup)) {
+              initiallySelected.add(stroke);
+              expanded = true;
+            }
+          }
+        }
+      }
+    }
+
+    this.selectedStrokes = initiallySelected;
     this.lassoPath = [];
     this.onUpdate();
-    this.triggerUIUpdate(); // Обязательно обновляем UI!
+    this.triggerUIUpdate();
   }
 
-  // НОВЫЕ МЕТОДЫ ДЛЯ КНОПОК
+  // --- ДЕЙСТВИЯ КНОПОК ---
+
   public deleteSelection() {
     if (this.selectedStrokes.size === 0) return;
     this.saveHistory();
@@ -217,7 +258,7 @@ export class State {
     if (this.selectedStrokes.size === 0) return;
     this.saveHistory();
     for (const stroke of this.selectedStrokes) {
-      stroke.color = this.currentColor; // Используем выбранный в палитре цвет
+      stroke.color = this.currentColor;
     }
     this.onUpdate();
   }
@@ -239,8 +280,50 @@ export class State {
         p.x = origin.x + (p.x - origin.x) * scale;
         p.y = origin.y + (p.y - origin.y) * scale;
       }
-      stroke.pen.size *= scale; // Масштабируем толщину кисти тоже
+      stroke.pen.size *= scale;
     }
+    this.onUpdate();
+    this.triggerUIUpdate();
+  }
+
+  // НОВОЕ: Группировка
+  public groupSelected() {
+    if (this.selectedStrokes.size < 2) return;
+    this.saveHistory();
+    // Генерируем уникальный ID для новой группы
+    const newGroupId = Math.random().toString(36).substring(2, 10);
+
+    for (const stroke of this.selectedStrokes) {
+      if (!stroke.groupIds) stroke.groupIds = [];
+      stroke.groupIds.push(newGroupId);
+    }
+    this.onUpdate();
+    this.triggerUIUpdate();
+  }
+
+  // НОВОЕ: Разгруппировка
+  public ungroupSelected() {
+    if (this.selectedStrokes.size === 0) return;
+    this.saveHistory();
+
+    // Находим верхнеуровневые группы, которые сейчас выделены
+    const topGroupsToUngroup = new Set<string>();
+    for (const stroke of this.selectedStrokes) {
+      if (stroke.groupIds && stroke.groupIds.length > 0) {
+        topGroupsToUngroup.add(stroke.groupIds[stroke.groupIds.length - 1]);
+      }
+    }
+
+    // Удаляем эти группы у всех векторов (снимаем верхний уровень)
+    for (const stroke of this.strokes) {
+      if (stroke.groupIds && stroke.groupIds.length > 0) {
+        const top = stroke.groupIds[stroke.groupIds.length - 1];
+        if (topGroupsToUngroup.has(top)) {
+          stroke.groupIds.pop(); // Снимаем верхнюю оболочку
+        }
+      }
+    }
+
     this.onUpdate();
     this.triggerUIUpdate();
   }
