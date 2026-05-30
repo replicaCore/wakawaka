@@ -1,4 +1,7 @@
-const average = (a: number, b: number) => (a + b) / 2;
+// src/utils.ts
+import type { Coordinate } from "./type";
+
+export const average = (a: number, b: number) => (a + b) / 2;
 
 export function getSvgPathFromStroke(points: number[][], closed = true) {
   const len = points.length;
@@ -27,10 +30,7 @@ export function getSvgPathFromStroke(points: number[][], closed = true) {
   return result;
 }
 
-export function pointInPolygon(
-  pt: { x: number; y: number },
-  polygon: { x: number; y: number }[],
-) {
+export function pointInPolygon(pt: Coordinate, polygon: Coordinate[]) {
   let isInside = false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
     const xi = polygon[i].x,

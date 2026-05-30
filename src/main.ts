@@ -4,18 +4,16 @@ import { Toolbar } from "./ui/Toolbar";
 import { Renderer } from "./canvas/Render";
 import { InputHandler } from "./canvas/InputHandler";
 import { Pens } from "./ui/Pens";
-import { Settings } from "./canvas/Settings";
+import { Settings } from "./ui/settings/Settings";
 
 document.addEventListener("DOMContentLoaded", () => {
   const canvasElement = document.getElementById("app") as HTMLCanvasElement;
-
   const state = new State();
-
   const renderer = new Renderer(canvasElement, state);
+
   state.onUpdate = renderer.render;
 
   new InputHandler(canvasElement, state);
-
   new Palette(state);
   new Toolbar(state);
   new Pens(state);

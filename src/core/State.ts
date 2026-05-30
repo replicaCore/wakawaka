@@ -1,4 +1,5 @@
-import type { Camera, PenOptions, Point, Stroke } from "../type";
+// src/core/State.ts
+import type { Camera, Coordinate, PenOptions, Point, Stroke } from "../type";
 import { PEN_PRESETS } from "./State-const";
 import { pointInPolygon } from "../utils";
 
@@ -12,7 +13,6 @@ export class State {
   public lassoPath: Point[] = [];
 
   public camera: Camera = { x: 0, y: 0, zoom: 1 };
-
   public backgroundColor: string = "#000000";
   public invertColors: boolean = false;
 
@@ -33,9 +33,11 @@ export class State {
   public eraserMode: "partial" | "stroke" = "partial";
 
   private uiListeners: (() => void)[] = [];
+
   public subscribeUI(fn: () => void) {
     this.uiListeners.push(fn);
   }
+
   public triggerUIUpdate() {
     this.uiListeners.forEach((fn) => fn());
   }
@@ -50,7 +52,8 @@ export class State {
     this.onUpdate();
   }
 
-  public eraseStrokeAt(point: Point) {
+  // Заменено Point на Coordinate
+  public eraseStrokeAt(point: Coordinate) {
     const radius = this.currentPen.size / 2;
     const initialLength = this.strokes.length;
     this.strokes = this.strokes.filter((stroke) => {
@@ -61,7 +64,8 @@ export class State {
     if (this.strokes.length !== initialLength) this.onUpdate();
   }
 
-  public erasePartialAt(point: Point) {
+  // Заменено Point на Coordinate
+  public erasePartialAt(point: Coordinate) {
     const radius = this.currentPen.size / 2;
     const newStrokes: Stroke[] = [];
     let changed = false;
@@ -81,10 +85,9 @@ export class State {
           currentSegment.push(p);
         }
       }
-      if (strokeChanged) {
-        if (currentSegment.length > 0)
-          newStrokes.push({ ...stroke, points: currentSegment });
-      } else {
+      if (strokeChanged && currentSegment.length > 0) {
+        newStrokes.push({ ...stroke, points: currentSegment });
+      } else if (!strokeChanged) {
         newStrokes.push(stroke);
       }
     }
@@ -140,8 +143,8 @@ export class State {
     this.triggerUIUpdate();
   }
 
-  // НОВОЕ: Проверка, кликнули ли мы внутрь текущего выделения
-  public isPointInSelectionBox(pt: Point): boolean {
+  // Заменено Point на Coordinate
+  public isPointInSelectionBox(pt: Coordinate): boolean {
     if (this.selectedStrokes.size === 0) return false;
     let minX = Infinity,
       minY = Infinity,
@@ -157,7 +160,6 @@ export class State {
         if (p.y + padding > maxY) maxY = p.y + padding;
       }
     }
-
     return pt.x >= minX && pt.x <= maxX && pt.y >= minY && pt.y <= maxY;
   }
 
