@@ -1,3 +1,4 @@
+// src/canvas/InputHandler.ts
 import type { State } from "../core/State";
 import type { Coordinate } from "../type";
 
@@ -67,7 +68,6 @@ export class InputHandler {
 
     const worldPt = this.getScreenToWorld(e.clientX, e.clientY);
 
-    // Логика инструмента Выделение
     if (this.state.currentPen.isSelector) {
       if (this.state.isPointInSelectionBox(worldPt)) {
         this.isDraggingSelection = true;
@@ -80,11 +80,11 @@ export class InputHandler {
           { x: worldPt.x, y: worldPt.y, pressure: e.pressure || 0.5 },
         ];
         this.state.onUpdate();
+        this.state.triggerUIUpdate(); // Скрыть UI тулбар на время рисования Лассо
       }
       return;
     }
 
-    // Логика Рисования / Ластика
     this.isDrawing = true;
     if (this.state.currentPen.isEraser) {
       this.state.saveHistory();
@@ -108,6 +108,7 @@ export class InputHandler {
       this.state.camera.y += e.clientY - this.lastPanPoint.y;
       this.lastPanPoint = { x: e.clientX, y: e.clientY };
       this.state.onUpdate();
+      this.state.triggerUIUpdate(); // Обязательно: UI тулбар должен двигаться за камерой!
       return;
     }
 
@@ -124,10 +125,31 @@ export class InputHandler {
     }
 
     if (this.isDraggingSelection) {
-      this.state.moveSelected(
-        worldPt.x - this.lastDragWorldPt.x,
-        worldPt.y - this.lastDragWorldPt.y,
-      );
+      if (this.state.selectionMode === "move") {
+        const dx = worldPt.x - this.lastDragWorldPt.x;
+        const dy = worldPt.y - this.lastDragWorldPt.y;
+        this.state.moveSelected(dx, dy);
+      } else if (this.state.selectionMode === "scale") {
+        const bounds = this.state.getSelectionBounds();
+        if (bounds) {
+          // Вычисляем центр выделения (Scale Origin)
+          const cx = (bounds.minX + bounds.maxX) / 2;
+          const cy = (bounds.minY + bounds.maxY) / 2;
+
+          // Высчитываем разницу дистанций курсора до центра
+          const lastDist = Math.hypot(
+            this.lastDragWorldPt.x - cx,
+            this.lastDragWorldPt.y - cy,
+          );
+          const currentDist = Math.hypot(worldPt.x - cx, worldPt.y - cy);
+
+          if (lastDist > 1) {
+            // Избегаем деления на ноль
+            const scaleFactor = currentDist / lastDist;
+            this.state.scaleSelected(scaleFactor, { x: cx, y: cy });
+          }
+        }
+      }
       this.lastDragWorldPt = worldPt;
       return;
     }
@@ -185,6 +207,7 @@ export class InputHandler {
     camera.zoom = newZoom;
 
     this.state.onUpdate();
+    this.state.triggerUIUpdate(); // Обязательно: UI тулбар должен масштабироваться!
     this.updateCursorVisual(e as unknown as PointerEvent);
   };
 

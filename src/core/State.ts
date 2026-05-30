@@ -12,6 +12,9 @@ export class State {
   public selectedStrokes: Set<Stroke> = new Set();
   public lassoPath: Point[] = [];
 
+  // НОВОЕ: Режим выделения (перемещение или масштабирование)
+  public selectionMode: "move" | "scale" = "move";
+
   public camera: Camera = { x: 0, y: 0, zoom: 1 };
   public backgroundColor: string = "#000000";
   public invertColors: boolean = false;
@@ -52,7 +55,6 @@ export class State {
     this.onUpdate();
   }
 
-  // Заменено Point на Coordinate
   public eraseStrokeAt(point: Coordinate) {
     const radius = this.currentPen.size / 2;
     const initialLength = this.strokes.length;
@@ -64,7 +66,6 @@ export class State {
     if (this.strokes.length !== initialLength) this.onUpdate();
   }
 
-  // Заменено Point на Coordinate
   public erasePartialAt(point: Coordinate) {
     const radius = this.currentPen.size / 2;
     const newStrokes: Stroke[] = [];
@@ -100,6 +101,7 @@ export class State {
   public setPen(index: number) {
     this.currentPen = this.pens[index];
     this.selectedStrokes.clear();
+    this.selectionMode = "move"; // Сброс режима
     this.onUpdate();
     this.triggerUIUpdate();
   }
@@ -126,7 +128,9 @@ export class State {
     if (this.history.length > 0) {
       this.redoHistory.push(JSON.parse(JSON.stringify(this.strokes)));
       this.strokes = this.history.pop()!;
+      this.selectedStrokes.clear();
       this.onUpdate();
+      this.triggerUIUpdate();
     }
   }
 
@@ -134,7 +138,9 @@ export class State {
     if (this.redoHistory.length > 0) {
       this.history.push(JSON.parse(JSON.stringify(this.strokes)));
       this.strokes = this.redoHistory.pop()!;
+      this.selectedStrokes.clear();
       this.onUpdate();
+      this.triggerUIUpdate();
     }
   }
 
@@ -143,9 +149,9 @@ export class State {
     this.triggerUIUpdate();
   }
 
-  // Заменено Point на Coordinate
-  public isPointInSelectionBox(pt: Coordinate): boolean {
-    if (this.selectedStrokes.size === 0) return false;
+  // НОВОЕ: Получение границ (Bounding Box) текущего выделения
+  public getSelectionBounds() {
+    if (this.selectedStrokes.size === 0) return null;
     let minX = Infinity,
       minY = Infinity,
       maxX = -Infinity,
@@ -160,7 +166,18 @@ export class State {
         if (p.y + padding > maxY) maxY = p.y + padding;
       }
     }
-    return pt.x >= minX && pt.x <= maxX && pt.y >= minY && pt.y <= maxY;
+    return { minX, minY, maxX, maxY };
+  }
+
+  public isPointInSelectionBox(pt: Coordinate): boolean {
+    const bounds = this.getSelectionBounds();
+    if (!bounds) return false;
+    return (
+      pt.x >= bounds.minX &&
+      pt.x <= bounds.maxX &&
+      pt.y >= bounds.minY &&
+      pt.y <= bounds.maxY
+    );
   }
 
   public finishLasso() {
@@ -168,6 +185,7 @@ export class State {
       this.lassoPath = [];
       this.selectedStrokes.clear();
       this.onUpdate();
+      this.triggerUIUpdate(); // Обязательно обновляем UI!
       return;
     }
 
@@ -182,6 +200,26 @@ export class State {
     }
     this.lassoPath = [];
     this.onUpdate();
+    this.triggerUIUpdate(); // Обязательно обновляем UI!
+  }
+
+  // НОВЫЕ МЕТОДЫ ДЛЯ КНОПОК
+  public deleteSelection() {
+    if (this.selectedStrokes.size === 0) return;
+    this.saveHistory();
+    this.strokes = this.strokes.filter((s) => !this.selectedStrokes.has(s));
+    this.selectedStrokes.clear();
+    this.onUpdate();
+    this.triggerUIUpdate();
+  }
+
+  public changeSelectionColor() {
+    if (this.selectedStrokes.size === 0) return;
+    this.saveHistory();
+    for (const stroke of this.selectedStrokes) {
+      stroke.color = this.currentColor; // Используем выбранный в палитре цвет
+    }
+    this.onUpdate();
   }
 
   public moveSelected(dx: number, dy: number) {
@@ -192,5 +230,18 @@ export class State {
       }
     }
     this.onUpdate();
+    this.triggerUIUpdate();
+  }
+
+  public scaleSelected(scale: number, origin: Coordinate) {
+    for (const stroke of this.selectedStrokes) {
+      for (const p of stroke.points) {
+        p.x = origin.x + (p.x - origin.x) * scale;
+        p.y = origin.y + (p.y - origin.y) * scale;
+      }
+      stroke.pen.size *= scale; // Масштабируем толщину кисти тоже
+    }
+    this.onUpdate();
+    this.triggerUIUpdate();
   }
 }
