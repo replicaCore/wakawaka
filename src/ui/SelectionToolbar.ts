@@ -26,14 +26,6 @@ export class SelectionToolbar {
 
     this.container.classList.remove("hidden");
 
-    const { camera } = this.state;
-    const screenX = ((bounds.minX + bounds.maxX) / 2) * camera.zoom + camera.x;
-    const screenY = bounds.maxY * camera.zoom + camera.y;
-
-    this.container.style.left = `${screenX}px`;
-    this.container.style.top = `${screenY + 15}px`;
-    this.container.style.transform = "translateX(-50%)";
-
     // Проверяем условия для показа кнопок Группировки
     const canGroup = this.state.selectedStrokes.size > 1;
     let canUngroup = false;
@@ -48,22 +40,53 @@ export class SelectionToolbar {
     if (canGroup || canUngroup) {
       groupButtonsHtml += `<div class="w-px h-6 bg-gray-300 my-auto mx-1"></div>`;
       if (canGroup) {
-        groupButtonsHtml += `<button id="sel-group" class="w-10 h-10 rounded-lg flex items-center justify-center text-lg hover:bg-gray-100" title="Сгруппировать">🔗</button>`;
+        groupButtonsHtml += `<button id="sel-group" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="Сгруппировать"><i data-lucide="link" class="w-5 h-5 pointer-events-none"></i></button>`;
       }
       if (canUngroup) {
-        groupButtonsHtml += `<button id="sel-ungroup" class="w-10 h-10 rounded-lg flex items-center justify-center text-lg hover:bg-gray-100" title="Разгруппировать">🔓</button>`;
+        groupButtonsHtml += `<button id="sel-ungroup" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="Разгруппировать"><i data-lucide="unlink" class="w-5 h-5 pointer-events-none"></i></button>`;
       }
     }
 
     this.container.innerHTML = `
-      <button id="sel-move" class="w-10 h-10 rounded-lg flex items-center justify-center text-lg ${this.state.selectionMode === "move" ? "bg-blue-100 shadow-inner" : "hover:bg-gray-100"}" title="Перемещение">🤚</button>
-      <button id="sel-scale" class="w-10 h-10 rounded-lg flex items-center justify-center text-lg ${this.state.selectionMode === "scale" ? "bg-blue-100 shadow-inner" : "hover:bg-gray-100"}" title="Масштабирование">⤢</button>
+      <button id="sel-move" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 ${this.state.selectionMode === "move" ? "bg-blue-100 shadow-inner" : "hover:bg-gray-100"}" title="Перемещение"><i data-lucide="hand" class="w-5 h-5 pointer-events-none"></i></button>
+      <button id="sel-scale" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 ${this.state.selectionMode === "scale" ? "bg-blue-100 shadow-inner" : "hover:bg-gray-100"}" title="Масштабирование"><i data-lucide="maximize" class="w-5 h-5 pointer-events-none"></i></button>
+      
       <div class="w-px h-6 bg-gray-300 my-auto mx-1"></div>
-      <button id="sel-color" class="w-10 h-10 rounded-lg flex items-center justify-center text-lg hover:bg-gray-100" title="Изменить цвет">🎨</button>
-      <button id="sel-delete" class="w-10 h-10 rounded-lg flex items-center justify-center text-lg hover:bg-red-50 text-red-500" title="Удалить">🗑️</button>
+      
+      <!-- НОВЫЕ КНОПКИ ДЛЯ СЛОЕВ -->
+      <button id="sel-layer-up" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="На передний план"><i data-lucide="arrow-up-to-line" class="w-5 h-5 pointer-events-none"></i></button>
+      <button id="sel-layer-down" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="На задний план"><i data-lucide="arrow-down-to-line" class="w-5 h-5 pointer-events-none"></i></button>
+
+      <div class="w-px h-6 bg-gray-300 my-auto mx-1"></div>
+
+      <button id="sel-color" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="Изменить цвет"><i data-lucide="palette" class="w-5 h-5 pointer-events-none"></i></button>
+      <button id="sel-delete" class="w-10 h-10 rounded-lg flex items-center justify-center hover:bg-red-50 text-red-500" title="Удалить"><i data-lucide="trash-2" class="w-5 h-5 pointer-events-none"></i></button>
       ${groupButtonsHtml}
     `;
 
+    // Высчитываем координаты для меню (сначала рендерим, чтобы получить ширину/высоту элемента)
+    const { camera } = this.state;
+    const screenX = ((bounds.minX + bounds.maxX) / 2) * camera.zoom + camera.x;
+    const screenYBottom = bounds.maxY * camera.zoom + camera.y;
+    const screenYTop = bounds.minY * camera.zoom + camera.y;
+
+    // Даем немного времени браузеру отрисовать элемент, чтобы получить его реальные размеры
+    requestAnimationFrame(() => {
+      const menuHeight = this.container.offsetHeight || 52; // Примерно 52px высота
+      const windowHeight = window.innerHeight;
+
+      // Если внизу нет места, показываем сверху выделения
+      if (screenYBottom + menuHeight + 20 > windowHeight) {
+        this.container.style.top = `${Math.max(10, screenYTop - menuHeight - 15)}px`; // Не выше верхнего края экрана (10px отступ)
+      } else {
+        this.container.style.top = `${screenYBottom + 15}px`; // Как обычно, снизу
+      }
+
+      this.container.style.left = `${screenX}px`;
+      this.container.style.transform = "translateX(-50%)";
+    });
+
+    // Навешиваем события на старые кнопки
     document.getElementById("sel-move")?.addEventListener("click", () => {
       this.state.selectionMode = "move";
       this.state.triggerUIUpdate();
@@ -82,7 +105,6 @@ export class SelectionToolbar {
       this.state.deleteSelection();
     });
 
-    // События для новых кнопок
     document.getElementById("sel-group")?.addEventListener("click", () => {
       this.state.groupSelected();
     });
@@ -90,6 +112,16 @@ export class SelectionToolbar {
     document.getElementById("sel-ungroup")?.addEventListener("click", () => {
       this.state.ungroupSelected();
     });
+
+    // Навешиваем события-заглушки на НОВЫЕ кнопки слоев
+    document.getElementById("sel-layer-up")?.addEventListener("click", () => {
+      console.log("layer up"); // Здесь будет метод state
+    });
+
+    document.getElementById("sel-layer-down")?.addEventListener("click", () => {
+      console.log("layer down"); // Здесь будет метод state
+    });
+
     refreshIcons();
   }
 }

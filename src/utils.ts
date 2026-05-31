@@ -67,6 +67,8 @@ import {
   FileJson,
   FileCode,
   Image as ImageIcon,
+  ArrowUpToLine, // НОВОЕ
+  ArrowDownToLine, // НОВОЕ
 } from "lucide";
 
 export function refreshIcons() {
@@ -91,6 +93,8 @@ export function refreshIcons() {
       FileJson,
       FileCode,
       Image: ImageIcon,
+      ArrowUpToLine, // НОВОЕ
+      ArrowDownToLine, // НОВОЕ
     },
   });
 }

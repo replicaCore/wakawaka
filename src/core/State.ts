@@ -56,6 +56,9 @@ export class State {
 
   public saveHistory() {
     this.history.push(JSON.parse(JSON.stringify(this.strokes)));
+    if (this.history.length > 100) {
+      this.history.shift();
+    }
     this.redoHistory = [];
   }
 
