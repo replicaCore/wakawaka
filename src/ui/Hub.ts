@@ -1,8 +1,8 @@
-import type { Database } from "../canvas/Database";
-import { refreshIcons } from "../utils";
 import type { State } from "../core/State";
-import { importFile } from "../fileUtils";
-import type { Project } from "../type";
+import type { Database } from "../services/Database";
+import { importFile } from "../services/Exporter";
+import type { Project } from "../shared/types";
+import { refreshIcons } from "./icons";
 
 export class Hub {
   private db: Database;

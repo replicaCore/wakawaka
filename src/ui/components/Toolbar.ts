@@ -1,4 +1,4 @@
-import type { State } from "../core/State";
+import { State } from "../../core/State";
 
 export class Toolbar {
   private state: State;

@@ -1,5 +1,5 @@
 import type { State } from "../../core/State";
-import { exportJSON, exportSVG, exportImage } from "../../fileUtils";
+import { exportImage, exportJSON, exportSVG } from "../../services/Exporter";
 
 export function renderExportTab(content: HTMLDivElement, state: State) {
   content.innerHTML = `

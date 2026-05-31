@@ -1,5 +1,5 @@
 import type { State } from "../../core/State";
-import { refreshIcons } from "../../utils";
+import { refreshIcons } from "../icons";
 import { renderCanvasTab } from "./CanvasTab";
 import { renderColorsTab } from "./ColorsTab";
 import { renderExportTab } from "./ExportTab";

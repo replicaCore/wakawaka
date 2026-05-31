@@ -1,4 +1,4 @@
-import type { PenOptions } from "../type";
+import { PenOptions } from "../shared/types";
 
 export const PEN_PRESETS: PenOptions[] = [
   {

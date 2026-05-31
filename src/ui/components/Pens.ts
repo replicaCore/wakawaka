@@ -1,5 +1,5 @@
-import type { State } from "../core/State";
-import { refreshIcons } from "./icons";
+import type { State } from "../../core/State.ts";
+import { refreshIcons } from "../icons";
 
 export class Pens {
   private container: HTMLDivElement;

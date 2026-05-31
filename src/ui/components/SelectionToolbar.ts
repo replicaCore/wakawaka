@@ -1,5 +1,5 @@
-import { refreshIcons } from "../utils";
-import type { State } from "../core/State";
+import type { State } from "../../core/State";
+import { refreshIcons } from "../icons";
 
 export class SelectionToolbar {
   private container: HTMLDivElement;
@@ -77,16 +77,28 @@ export class SelectionToolbar {
     // Даем немного времени браузеру отрисовать элемент, чтобы получить его реальные размеры
     requestAnimationFrame(() => {
       const menuHeight = this.container.offsetHeight || 52; // Примерно 52px высота
+      const menuWidth = this.container.offsetWidth || 300; // Примерно 300px ширина
       const windowHeight = window.innerHeight;
+      const windowWidth = window.innerWidth;
+
+      let topPos = screenYBottom + 15;
 
       // Если внизу нет места, показываем сверху выделения
-      if (screenYBottom + menuHeight + 20 > windowHeight) {
-        this.container.style.top = `${Math.max(10, screenYTop - menuHeight - 15)}px`; // Не выше верхнего края экрана (10px отступ)
-      } else {
-        this.container.style.top = `${screenYBottom + 15}px`; // Как обычно, снизу
+      if (topPos + menuHeight + 20 > windowHeight) {
+        topPos = screenYTop - menuHeight - 15;
       }
 
-      this.container.style.left = `${screenX}px`;
+      // Жестко ограничиваем по Y, чтобы тулбар не уходил за верхний или нижний край экрана
+      topPos = Math.max(10, Math.min(topPos, windowHeight - menuHeight - 10));
+
+      // Жестко ограничиваем по X, чтобы тулбар не уходил за левый или правый край
+      // (с учетом того, что он сдвигается через translateX(-50%))
+      const minLeft = menuWidth / 2 + 10;
+      const maxLeft = windowWidth - menuWidth / 2 - 10;
+      const leftPos = Math.max(minLeft, Math.min(screenX, maxLeft));
+
+      this.container.style.top = `${topPos}px`;
+      this.container.style.left = `${leftPos}px`;
       this.container.style.transform = "translateX(-50%)";
     });
 

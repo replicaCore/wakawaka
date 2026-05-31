@@ -1,28 +1,30 @@
-import { pointInPolygon, round1 } from "../utils";
 import type {
-  Camera,
-  Coordinate,
-  PenOptions,
-  Point,
   Project,
   Stroke,
-} from "../type";
+  Point,
+  PenOptions,
+  Camera,
+  Coordinate,
+} from "../shared/types";
 import { PEN_PRESETS } from "./State-const";
+import { HistoryManager } from "./HistoryManager";
+import {
+  getSelectionBounds,
+  pointInPolygon,
+  isPointInBounds,
+} from "./SelectionMath";
+import { round1 } from "../shared/utils";
 
 export class State {
   public currentProjectId: string | null = null;
   public currentProjectName: string = "Новый холст";
   public isDirty: boolean = false;
-  public penSizes: [number, number, number] = [4, 12, 24];
-  public activeSizeIndex: number = 1;
+
   public strokes: Stroke[] = [];
   public currentStroke: Point[] = [];
-  public history: Stroke[][] = [];
-  public redoHistory: Stroke[][] = [];
 
   public selectedStrokes: Set<Stroke> = new Set();
   public lassoPath: Point[] = [];
-
   public selectionMode: "move" | "scale" = "move";
 
   public camera: Camera = { x: 0, y: 0, zoom: 1 };
@@ -38,45 +40,57 @@ export class State {
   ];
   public currentColor: string = this.colors[0];
 
+  public penSizes: [number, number, number] = [4, 12, 24];
+  public activeSizeIndex: number = 1;
   public pens: PenOptions[] = JSON.parse(JSON.stringify(PEN_PRESETS));
   public currentPen: PenOptions = this.pens[0];
 
-  public onUpdate: () => void = () => {};
-  public onUIUpdate: () => void = () => {};
+  private historyManager = new HistoryManager();
 
+  public onUpdate: () => void = () => {};
   private uiListeners: (() => void)[] = [];
 
   public subscribeUI(fn: () => void) {
     this.uiListeners.push(fn);
   }
-
   public triggerUIUpdate() {
     this.uiListeners.forEach((fn) => fn());
   }
-
   public markDirty() {
     this.isDirty = true;
   }
 
+  // --- ИСТОРИЯ ---
   public saveHistory() {
-    this.history.push(JSON.parse(JSON.stringify(this.strokes)));
-    if (this.history.length > 10) {
-      this.history.shift();
-    }
-    this.redoHistory = [];
+    this.historyManager.save(this.strokes);
   }
 
+  public undo() {
+    const prevState = this.historyManager.undo(this.strokes);
+    if (prevState) {
+      this.strokes = prevState;
+      this.selectedStrokes.clear();
+      this.markDirty();
+      this.onUpdate();
+      this.triggerUIUpdate();
+    }
+  }
+
+  public redo() {
+    const nextState = this.historyManager.redo(this.strokes);
+    if (nextState) {
+      this.strokes = nextState;
+      this.selectedStrokes.clear();
+      this.markDirty();
+      this.onUpdate();
+      this.triggerUIUpdate();
+    }
+  }
+
+  // --- РИСОВАНИЕ И КИСТИ ---
   public addPoint(point: Point) {
     this.currentStroke.push(point);
     this.onUpdate();
-  }
-
-  public setPen(index: number) {
-    this.currentPen = this.pens[index];
-    this.selectedStrokes.clear();
-    this.selectionMode = "move";
-    this.onUpdate();
-    this.triggerUIUpdate();
   }
 
   public endStroke() {
@@ -93,26 +107,12 @@ export class State {
     }
   }
 
-  public undo() {
-    if (this.history.length > 0) {
-      this.redoHistory.push(JSON.parse(JSON.stringify(this.strokes)));
-      this.strokes = this.history.pop()!;
-      this.selectedStrokes.clear();
-      this.markDirty();
-      this.onUpdate();
-      this.triggerUIUpdate();
-    }
-  }
-
-  public redo() {
-    if (this.redoHistory.length > 0) {
-      this.history.push(JSON.parse(JSON.stringify(this.strokes)));
-      this.strokes = this.redoHistory.pop()!;
-      this.selectedStrokes.clear();
-      this.markDirty();
-      this.onUpdate();
-      this.triggerUIUpdate();
-    }
+  public setPen(index: number) {
+    this.currentPen = this.pens[index];
+    this.selectedStrokes.clear();
+    this.selectionMode = "move";
+    this.onUpdate();
+    this.triggerUIUpdate();
   }
 
   public setColor(color: string) {
@@ -120,43 +120,38 @@ export class State {
     this.triggerUIUpdate();
   }
 
-  public getSelectionBounds() {
-    if (this.selectedStrokes.size === 0) return null;
-    let minX = Infinity,
-      minY = Infinity,
-      maxX = -Infinity,
-      maxY = -Infinity;
-
-    for (const stroke of this.selectedStrokes) {
-      const padding = stroke.pen.size / 2 + 5;
-      for (const p of stroke.points) {
-        if (p.x - padding < minX) minX = p.x - padding;
-        if (p.y - padding < minY) minY = p.y - padding;
-        if (p.x + padding > maxX) maxX = p.x + padding;
-        if (p.y + padding > maxY) maxY = p.y + padding;
-      }
+  public setPenSizeIndex(index: number) {
+    if (index >= 0 && index <= 2) {
+      this.activeSizeIndex = index;
+      this.pens[0].size = this.penSizes[index];
+      this.triggerUIUpdate();
+      this.markDirty();
+      this.onUpdate();
     }
-    return { minX, minY, maxX, maxY };
   }
 
-  public isPointInSelectionBox(pt: Coordinate): boolean {
+  public togglePressure(val: boolean) {
+    this.pens[0].simulatePressure = val;
+    this.triggerUIUpdate();
+    this.markDirty();
+    this.onUpdate();
+  }
+
+  // --- ВЫДЕЛЕНИЕ (LASSO, ТРАНСФОРМАЦИИ) ---
+  public getSelectionBounds() {
+    return getSelectionBounds(this.selectedStrokes);
+  }
+
+  public isPointInSelectionBox(pt: Coordinate) {
     const bounds = this.getSelectionBounds();
-    if (!bounds) return false;
-    return (
-      pt.x >= bounds.minX &&
-      pt.x <= bounds.maxX &&
-      pt.y >= bounds.minY &&
-      pt.y <= bounds.maxY
-    );
+    return isPointInBounds(pt, bounds);
   }
 
-  // НОВОЕ: Метод обновления выделения в реальном времени
   public updateLassoSelection() {
     if (this.lassoPath.length < 3) {
       this.selectedStrokes.clear();
       return;
     }
-
     const initiallySelected = new Set<Stroke>();
     for (const stroke of this.strokes) {
       for (const p of stroke.points) {
@@ -166,18 +161,15 @@ export class State {
         }
       }
     }
-
     let expanded = true;
     while (expanded) {
       expanded = false;
       const currentTopGroups = new Set<string>();
-
       for (const stroke of initiallySelected) {
         if (stroke.groupIds && stroke.groupIds.length > 0) {
           currentTopGroups.add(stroke.groupIds[stroke.groupIds.length - 1]);
         }
       }
-
       if (currentTopGroups.size > 0) {
         for (const stroke of this.strokes) {
           if (
@@ -198,7 +190,7 @@ export class State {
   }
 
   public finishLasso() {
-    this.lassoPath = []; // Просто очищаем линию лассо, выделение уже посчитано
+    this.lassoPath = [];
     this.onUpdate();
     this.triggerUIUpdate();
   }
@@ -222,9 +214,6 @@ export class State {
     this.markDirty();
     this.onUpdate();
   }
-
-  // Не забудьте импортировать round1 в начале файла State.ts:
-  //
 
   public moveSelected(dx: number, dy: number) {
     for (const stroke of this.selectedStrokes) {
@@ -255,7 +244,6 @@ export class State {
     if (this.selectedStrokes.size < 2) return;
     this.saveHistory();
     const newGroupId = Math.random().toString(36).substring(2, 10);
-
     for (const stroke of this.selectedStrokes) {
       if (!stroke.groupIds) stroke.groupIds = [];
       stroke.groupIds.push(newGroupId);
@@ -268,28 +256,24 @@ export class State {
   public ungroupSelected() {
     if (this.selectedStrokes.size === 0) return;
     this.saveHistory();
-
     const topGroupsToUngroup = new Set<string>();
     for (const stroke of this.selectedStrokes) {
       if (stroke.groupIds && stroke.groupIds.length > 0) {
         topGroupsToUngroup.add(stroke.groupIds[stroke.groupIds.length - 1]);
       }
     }
-
     for (const stroke of this.strokes) {
       if (stroke.groupIds && stroke.groupIds.length > 0) {
         const top = stroke.groupIds[stroke.groupIds.length - 1];
-        if (topGroupsToUngroup.has(top)) {
-          stroke.groupIds.pop();
-        }
+        if (topGroupsToUngroup.has(top)) stroke.groupIds.pop();
       }
     }
-
     this.markDirty();
     this.onUpdate();
     this.triggerUIUpdate();
   }
 
+  // --- УПРАВЛЕНИЕ ПРОЕКТОМ ---
   public loadProject(project: Project | null) {
     if (project) {
       this.currentProjectId = project.id;
@@ -306,10 +290,7 @@ export class State {
       } else {
         this.pens[0] = JSON.parse(JSON.stringify(PEN_PRESETS[0]));
       }
-
-      // Загружаем сохраненную историю
-      this.history = project.history || [];
-      this.redoHistory = project.redoHistory || [];
+      this.historyManager.load(project.history, project.redoHistory);
     } else {
       this.currentProjectId = Date.now().toString();
       this.currentProjectName =
@@ -322,22 +303,19 @@ export class State {
       this.penSizes = [4, 12, 24];
       this.activeSizeIndex = 1;
       this.pens[0] = JSON.parse(JSON.stringify(PEN_PRESETS[0]));
-
-      this.history = [];
-      this.redoHistory = [];
+      this.historyManager.clear();
     }
 
     this.selectedStrokes.clear();
     this.lassoPath = [];
     this.isDirty = false;
-
     this.currentPen = this.pens[0];
-
     this.onUpdate();
     this.triggerUIUpdate();
   }
 
   public getProjectData(includeHistory = false): Project {
+    const { history, redoHistory } = this.historyManager.getRawData();
     return {
       id: this.currentProjectId!,
       name: this.currentProjectName,
@@ -346,30 +324,11 @@ export class State {
       strokes: this.strokes,
       backgroundColor: this.backgroundColor,
       camera: this.camera,
-
       penSizes: this.penSizes,
       activeSizeIndex: this.activeSizeIndex,
       penOptions: this.pens[0],
-
-      history: includeHistory ? this.history : [],
-      redoHistory: includeHistory ? this.redoHistory : [],
+      history: includeHistory ? history : [],
+      redoHistory: includeHistory ? redoHistory : [],
     };
-  }
-
-  public setPenSizeIndex(index: number) {
-    if (index >= 0 && index <= 2) {
-      this.activeSizeIndex = index;
-      this.pens[0].size = this.penSizes[index]; // Теперь индекс кисти - 0
-      this.triggerUIUpdate();
-      this.markDirty();
-      this.onUpdate();
-    }
-  }
-
-  public togglePressure(val: boolean) {
-    this.pens[0].simulatePressure = val; // Теперь индекс кисти - 0
-    this.triggerUIUpdate();
-    this.markDirty();
-    this.onUpdate();
   }
 }

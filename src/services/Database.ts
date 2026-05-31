@@ -1,5 +1,4 @@
-// src/canvas/Database.ts
-import type { Project } from "../type";
+import type { Project } from "../shared/types";
 
 export class Database {
   private dbName = "CanvasHubDB";

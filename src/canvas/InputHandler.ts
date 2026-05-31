@@ -1,7 +1,6 @@
-// src/canvas/InputHandler.ts
-import { round1 } from "../utils";
+import { round1 } from "../shared/utils";
 import type { State } from "../core/State";
-import type { Coordinate } from "../type";
+import type { Coordinate } from "../shared/types";
 
 export class InputHandler {
   private isDrawing = false;

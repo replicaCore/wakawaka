@@ -1,8 +1,7 @@
-// src/fileUtils.ts
 import { getStroke } from "perfect-freehand";
-import { getSvgPathFromStroke } from "./utils";
-import type { Project, Stroke, Point } from "./type";
-import { PEN_PRESETS } from "./core/State-const";
+import { getSvgPathFromStroke } from "../shared/utils";
+import type { Project, Stroke, Point } from "../shared/types";
+import { PEN_PRESETS } from "../core/State-const";
 
 function getProjectBounds(strokes: Stroke[]) {
   let minX = Infinity,
