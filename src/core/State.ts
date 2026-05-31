@@ -13,6 +13,8 @@ export class State {
   public currentProjectId: string | null = null;
   public currentProjectName: string = "Новый холст";
   public isDirty: boolean = false;
+  public penSizes: [number, number, number] = [4, 12, 24];
+  public activeSizeIndex: number = 1;
   public strokes: Stroke[] = [];
   public currentStroke: Point[] = [];
   public history: Stroke[][] = [];
@@ -276,6 +278,15 @@ export class State {
       this.strokes = project.strokes || [];
       this.backgroundColor = project.backgroundColor || "#000000";
       this.camera = project.camera || { x: 0, y: 0, zoom: 1 };
+
+      // Загружаем сохраненные настройки кисти или берем по умолчанию
+      this.penSizes = project.penSizes || [4, 12, 24];
+      this.activeSizeIndex = project.activeSizeIndex ?? 1;
+      if (project.penOptions) {
+        this.pens[0] = project.penOptions;
+      } else {
+        this.pens[0] = JSON.parse(JSON.stringify(PEN_PRESETS[0]));
+      }
     } else {
       this.currentProjectId = Date.now().toString();
       this.currentProjectName =
@@ -283,15 +294,21 @@ export class State {
       this.strokes = [];
       this.backgroundColor = "#000000";
       this.camera = { x: 0, y: 0, zoom: 1 };
+
+      // Сброс настроек кисти по умолчанию
+      this.penSizes = [4, 12, 24];
+      this.activeSizeIndex = 1;
+      this.pens[0] = JSON.parse(JSON.stringify(PEN_PRESETS[0]));
     }
 
     this.history = [];
     this.redoHistory = [];
     this.selectedStrokes.clear();
     this.lassoPath = [];
-
-    // НОВОЕ: Сброс флага
     this.isDirty = false;
+
+    // Делаем кисть активным инструментом по умолчанию!
+    this.currentPen = this.pens[0];
 
     this.onUpdate();
     this.triggerUIUpdate();
@@ -306,11 +323,26 @@ export class State {
       strokes: this.strokes,
       backgroundColor: this.backgroundColor,
       camera: this.camera,
+
+      // Сохраняем индивидуальные настройки кисти
+      penSizes: this.penSizes,
+      activeSizeIndex: this.activeSizeIndex,
+      penOptions: this.pens[0],
     };
   }
 
-  public setPenSize(size: number) {
-    this.currentPen.size = size;
+  public setPenSizeIndex(index: number) {
+    if (index >= 0 && index <= 2) {
+      this.activeSizeIndex = index;
+      this.pens[0].size = this.penSizes[index]; // Теперь индекс кисти - 0
+      this.triggerUIUpdate();
+      this.onUpdate(); // Сохраняем в БД при смене размера
+    }
+  }
+
+  public togglePressure(val: boolean) {
+    this.pens[0].simulatePressure = val; // Теперь индекс кисти - 0
     this.triggerUIUpdate();
+    this.onUpdate(); // Сохраняем в БД при смене нажима
   }
 }

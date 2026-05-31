@@ -28,8 +28,11 @@ export type Project = {
   thumbnail: string; // Картинка превью (Base64)
   updatedAt: number; // Время последнего изменения
 
-  // Данные холста
   strokes: Stroke[];
   backgroundColor: string;
   camera: Camera;
+
+  penSizes?: [number, number, number];
+  activeSizeIndex?: number;
+  penOptions?: PenOptions;
 };
