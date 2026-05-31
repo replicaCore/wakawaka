@@ -1,4 +1,5 @@
 import type { State } from "../core/State";
+import { refreshIcons } from "../utils";
 
 export class Pens {
   private container: HTMLDivElement;
@@ -39,7 +40,7 @@ export class Pens {
     this.state.pens.forEach((pen, i) => {
       const btn = document.createElement("button");
       btn.className = `w-10 h-10 flex items-center justify-center rounded-xl transition-transform active:scale-95 ${this.state.currentPen === pen ? "bg-blue-100 shadow-inner" : "hover:bg-gray-100"}`;
-      btn.innerText = pen.icon;
+      btn.innerHTML = `<i data-lucide="${pen.icon}" class="w-5 h-5 pointer-events-none"></i>`;
       btn.onclick = () => this.state.setPen(i);
       this.container.appendChild(btn);
     });
@@ -64,5 +65,6 @@ export class Pens {
         }
       });
     }
+    refreshIcons();
   }
 }

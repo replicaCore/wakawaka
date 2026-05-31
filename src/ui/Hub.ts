@@ -1,4 +1,5 @@
 import type { Database } from "../canvas/Database";
+import { refreshIcons } from "../utils";
 import type { State } from "../core/State";
 import { importFile } from "../fileUtils";
 import type { Project } from "../type";
@@ -172,7 +173,9 @@ export class Hub {
            <h3 class="font-bold text-gray-800 truncate">${proj.name}</h3>
            <p class="text-xs text-gray-400 mt-1">${date}</p>
         </div>
-        <button class="delete-btn absolute top-2 right-2 bg-white text-red-500 w-8 h-8 rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-red-50">✕</button>
+        <button class="delete-btn absolute top-2 right-2 bg-white text-red-500 w-8 h-8 rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-red-50">
+          <i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i>
+        </button>
       `;
 
       card.addEventListener("click", (e) => {
@@ -192,6 +195,7 @@ export class Hub {
 
       this.grid.appendChild(card);
     });
+    refreshIcons();
   }
 
   public showEditor() {

@@ -1,4 +1,4 @@
-// src/ui/SelectionToolbar.ts
+import { refreshIcons } from "../utils";
 import type { State } from "../core/State";
 
 export class SelectionToolbar {
@@ -90,5 +90,6 @@ export class SelectionToolbar {
     document.getElementById("sel-ungroup")?.addEventListener("click", () => {
       this.state.ungroupSelected();
     });
+    refreshIcons();
   }
 }

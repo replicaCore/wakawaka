@@ -2,7 +2,7 @@ import type { PenOptions } from "../type";
 
 export const PEN_PRESETS: PenOptions[] = [
   {
-    icon: "🖋️",
+    icon: "pen-tool",
     size: 12,
     thinning: 0.7,
     smoothing: 0.5,
@@ -10,7 +10,7 @@ export const PEN_PRESETS: PenOptions[] = [
     simulatePressure: true,
   },
   {
-    icon: "👆",
+    icon: "lasso",
     size: 1,
     thinning: 0,
     smoothing: 0,

@@ -1,4 +1,5 @@
 import type { State } from "../../core/State";
+import { refreshIcons } from "../../utils";
 import { renderCanvasTab } from "./CanvasTab";
 import { renderColorsTab } from "./ColorsTab";
 import { renderExportTab } from "./ExportTab";
@@ -64,5 +65,7 @@ export class Settings {
     if (this.activeTab === "pens")
       renderPensTab(this.content, this.state, this.renderContent);
     if (this.activeTab === "export") renderExportTab(this.content, this.state);
+
+    refreshIcons();
   };
 }

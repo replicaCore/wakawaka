@@ -1,4 +1,5 @@
 import { Database } from "./canvas/Database";
+import { refreshIcons } from "./utils";
 import { State } from "./core/State";
 import { Renderer } from "./canvas/Render";
 import { InputHandler } from "./canvas/InputHandler";
@@ -50,4 +51,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       hub.forceSave();
     }
   });
+
+  refreshIcons();
 });

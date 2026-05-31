@@ -295,7 +295,7 @@ export class State {
       this.backgroundColor = "#000000";
       this.camera = { x: 0, y: 0, zoom: 1 };
 
-      // Сброс настроек кисти по умолчанию
+      this.pens[0].icon = "pen-tool";
       this.penSizes = [4, 12, 24];
       this.activeSizeIndex = 1;
       this.pens[0] = JSON.parse(JSON.stringify(PEN_PRESETS[0]));

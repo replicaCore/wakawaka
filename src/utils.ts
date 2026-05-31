@@ -45,3 +45,52 @@ export function pointInPolygon(pt: Coordinate, polygon: Coordinate[]) {
   }
   return isInside;
 }
+
+import {
+  createIcons,
+  Download,
+  Plus,
+  ArrowLeft,
+  Undo,
+  Redo,
+  Settings,
+  X,
+  PenTool,
+  Pencil,
+  Lasso,
+  Link,
+  Unlink,
+  Hand,
+  Maximize,
+  Palette,
+  Trash2,
+  FileJson,
+  FileCode,
+  Image as ImageIcon,
+} from "lucide";
+
+export function refreshIcons() {
+  createIcons({
+    icons: {
+      Download,
+      Plus,
+      ArrowLeft,
+      Undo,
+      Redo,
+      Pencil,
+      Settings,
+      X,
+      PenTool,
+      Lasso,
+      Link,
+      Unlink,
+      Hand,
+      Maximize,
+      Palette,
+      Trash2,
+      FileJson,
+      FileCode,
+      Image: ImageIcon,
+    },
+  });
+}

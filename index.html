@@ -22,9 +22,9 @@
         <div class="flex gap-3">
           <button
             id="import-btn"
-            class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-5 py-3 rounded-2xl font-bold shadow-sm transition-colors"
+            class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-5 py-3 rounded-2xl font-bold shadow-sm transition-colors flex items-center gap-2"
           >
-            📥 Загрузить
+            <i data-lucide="download" class="w-5 h-5"></i> Загрузить
           </button>
           <input
             type="file"
@@ -35,14 +35,12 @@
 
           <button
             id="new-project-btn"
-            class="bg-blue-500 hover:bg-blue-600 text-white px-5 py-3 rounded-2xl font-bold shadow-sm transition-colors"
+            class="bg-blue-500 hover:bg-blue-600 text-white px-5 py-3 rounded-2xl font-bold shadow-sm transition-colors flex items-center gap-2"
           >
-            + Новый холст
+            <i data-lucide="plus" class="w-5 h-5"></i> Новый холст
           </button>
         </div>
       </div>
-
-      <!-- Сюда будут загружаться карточки с проектами -->
       <div
         id="projects-grid"
         class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6 max-w-5xl mx-auto w-full pb-20"
@@ -53,29 +51,27 @@
     <div id="editor-screen" class="hidden w-full h-full absolute inset-0">
       <button
         id="back-to-hub-btn"
-        class="absolute top-4 left-4 z-20 bg-white/80 hover:bg-white backdrop-blur-sm px-4 py-3 rounded-2xl shadow-sm font-bold text-gray-700 pointer-events-auto transition-colors"
+        class="absolute bottom-4 left-4 z-20 bg-white/80 hover:bg-white backdrop-blur-sm px-4 py-3 rounded-2xl shadow-sm font-bold text-gray-700 pointer-events-auto transition-colors flex items-center gap-2"
       >
-        &larr; В галерею
+        <i data-lucide="arrow-left" class="w-5 h-5"></i>
       </button>
 
       <!-- UI (Тулбары) -->
       <div id="UI" class="absolute inset-0 z-10 pointer-events-none">
-        <div class="flex justify-center items-start p-4 w-full">
-          <div
-            id="UI button"
-            class="flex gap-2 pointer-events-auto mr-auto ml-32"
-          >
+        <div class="grid grid-cols-3 p-4 w-full items-start">
+          <!-- Кнопки Undo/Redo -->
+          <div id="UI-button" class="flex gap-2 pointer-events-auto">
             <button
               id="undo"
-              class="w-12 h-12 bg-blue-50 text-cyan-500 rounded-xl shadow-sm font-bold"
+              class="w-12 h-12 bg-blue-50 text-cyan-500 rounded-xl shadow-sm hover:bg-blue-100 transition flex items-center justify-center"
             >
-              U
+              <i data-lucide="undo" class="w-6 h-6"></i>
             </button>
             <button
               id="redo"
-              class="w-12 h-12 bg-blue-50 text-cyan-500 rounded-xl shadow-sm font-bold"
+              class="w-12 h-12 bg-blue-50 text-cyan-500 rounded-xl shadow-sm hover:bg-blue-100 transition flex items-center justify-center"
             >
-              R
+              <i data-lucide="redo" class="w-6 h-6"></i>
             </button>
           </div>
 
@@ -111,22 +107,22 @@
                   id="pressure-toggle"
                   class="w-5 h-5 rounded text-blue-500 cursor-pointer"
                 />
-                <span>Нажим</span>
+                <i data-lucide="pen-tool" class="w-5 h-5"></i>
               </label>
             </div>
           </div>
 
           <div
-            id="UI pens"
-            class="flex gap-2 pointer-events-auto bg-white/80 p-1.5 rounded-2xl shadow-sm backdrop-blur-sm items-center ml-auto"
+            id="UI-pens"
+            class="flex gap-2 pointer-events-auto bg-white/80 p-1.5 rounded-2xl shadow-sm backdrop-blur-sm items-center justify-end ml-auto"
           >
             <div id="pens-container" class="flex gap-2"></div>
             <div class="w-px h-6 bg-gray-300 mx-1"></div>
             <button
               id="settings-open-btn"
-              class="w-10 h-10 rounded-xl hover:bg-gray-200 transition-colors"
+              class="w-10 h-10 rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center text-gray-700"
             >
-              ⚙️
+              <i data-lucide="settings" class="w-5 h-5"></i>
             </button>
           </div>
         </div>
@@ -149,9 +145,9 @@
             <h2 class="text-xl font-bold">Настройки</h2>
             <button
               id="settings-close-btn"
-              class="w-8 h-8 rounded-full hover:bg-gray-100 font-bold"
+              class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500"
             >
-              ✕
+              <i data-lucide="x" class="w-5 h-5"></i>
             </button>
           </div>
           <div class="flex border-b bg-gray-50 text-sm">
@@ -165,7 +161,7 @@
               class="settings-tab flex-1 py-2 border-b-2 border-transparent text-gray-500"
               data-tab="pens"
             >
-              Кисти
+              Кисть
             </button>
             <button
               class="settings-tab flex-1 py-2 border-b-2 border-transparent text-gray-500"
@@ -184,7 +180,6 @@
         </div>
       </div>
 
-      <!-- Холст -->
       <div id="canvas-container" class="absolute top-0 left-0 w-full h-full">
         <canvas id="app" class="touch-none w-full h-full block"></canvas>
       </div>
@@ -199,7 +194,6 @@
         style="transform: translate(-50%, -50%)"
       ></div>
     </div>
-
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

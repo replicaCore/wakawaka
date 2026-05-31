@@ -136,7 +136,6 @@ export class Settings {
         "flex flex-col gap-3 mb-4 pr-2 max-h-[55vh] overflow-y-auto";
 
       this.state.pens.forEach((pen, i) => {
-        const isEraser = pen.isEraser;
         const item = document.createElement("div");
         item.className =
           "border rounded-xl p-3 bg-gray-50 flex flex-col gap-3 shadow-sm";
