@@ -35,4 +35,7 @@ export type Project = {
   penSizes?: [number, number, number];
   activeSizeIndex?: number;
   penOptions?: PenOptions;
+
+  history?: Stroke[][];
+  redoHistory?: Stroke[][];
 };

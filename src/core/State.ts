@@ -282,14 +282,18 @@ export class State {
       this.backgroundColor = project.backgroundColor || "#000000";
       this.camera = project.camera || { x: 0, y: 0, zoom: 1 };
 
-      // Загружаем сохраненные настройки кисти или берем по умолчанию
       this.penSizes = project.penSizes || [4, 12, 24];
       this.activeSizeIndex = project.activeSizeIndex ?? 1;
       if (project.penOptions) {
         this.pens[0] = project.penOptions;
+        this.pens[0].icon = "pen-tool";
       } else {
         this.pens[0] = JSON.parse(JSON.stringify(PEN_PRESETS[0]));
       }
+
+      // Загружаем сохраненную историю
+      this.history = project.history || [];
+      this.redoHistory = project.redoHistory || [];
     } else {
       this.currentProjectId = Date.now().toString();
       this.currentProjectName =
@@ -302,15 +306,15 @@ export class State {
       this.penSizes = [4, 12, 24];
       this.activeSizeIndex = 1;
       this.pens[0] = JSON.parse(JSON.stringify(PEN_PRESETS[0]));
+
+      this.history = [];
+      this.redoHistory = [];
     }
 
-    this.history = [];
-    this.redoHistory = [];
     this.selectedStrokes.clear();
     this.lassoPath = [];
     this.isDirty = false;
 
-    // Делаем кисть активным инструментом по умолчанию!
     this.currentPen = this.pens[0];
 
     this.onUpdate();
@@ -327,10 +331,13 @@ export class State {
       backgroundColor: this.backgroundColor,
       camera: this.camera,
 
-      // Сохраняем индивидуальные настройки кисти
       penSizes: this.penSizes,
       activeSizeIndex: this.activeSizeIndex,
       penOptions: this.pens[0],
+
+      // Отправляем историю в БД/JSON
+      history: this.history,
+      redoHistory: this.redoHistory,
     };
   }
 

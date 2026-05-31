@@ -8,6 +8,7 @@ export class InputHandler {
   private isSpacePressed = false;
   private isDrawingLasso = false;
   private isDraggingSelection = false;
+  private hasDragged = false;
 
   private lastDragWorldPt: Coordinate = { x: 0, y: 0 };
   private lastPanPoint: Coordinate = { x: 0, y: 0 };
@@ -71,8 +72,8 @@ export class InputHandler {
     if (this.state.currentPen.isSelector) {
       if (this.state.isPointInSelectionBox(worldPt)) {
         this.isDraggingSelection = true;
+        this.hasDragged = false;
         this.lastDragWorldPt = worldPt;
-        this.state.saveHistory();
       } else {
         this.state.selectedStrokes.clear();
         this.isDrawingLasso = true;
@@ -113,13 +114,17 @@ export class InputHandler {
         y: worldPt.y,
         pressure: e.pressure || 0.5,
       });
-      // НОВОЕ: Пересчитываем выделение прямо во время движения
       this.state.updateLassoSelection();
       this.state.onUpdate();
       return;
     }
 
     if (this.isDraggingSelection) {
+      if (!this.hasDragged) {
+        this.state.saveHistory();
+        this.hasDragged = true;
+      }
+
       if (this.state.selectionMode === "move") {
         const dx = worldPt.x - this.lastDragWorldPt.x;
         const dy = worldPt.y - this.lastDragWorldPt.y;

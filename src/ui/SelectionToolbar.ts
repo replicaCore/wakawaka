@@ -53,13 +53,17 @@ export class SelectionToolbar {
       
       <div class="w-px h-6 bg-gray-300 my-auto mx-1"></div>
       
-      <!-- НОВЫЕ КНОПКИ ДЛЯ СЛОЕВ -->
+      <!-- КНОПКИ ДЛЯ СЛОЕВ -->
       <button id="sel-layer-up" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="На передний план"><i data-lucide="arrow-up-to-line" class="w-5 h-5 pointer-events-none"></i></button>
       <button id="sel-layer-down" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="На задний план"><i data-lucide="arrow-down-to-line" class="w-5 h-5 pointer-events-none"></i></button>
 
       <div class="w-px h-6 bg-gray-300 my-auto mx-1"></div>
 
-      <button id="sel-color" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="Изменить цвет"><i data-lucide="palette" class="w-5 h-5 pointer-events-none"></i></button>
+      <!-- ИКОНКА ПАЛИТРЫ ЦВЕТА -->
+      <button id="sel-color" class="w-10 h-10 rounded-lg flex items-center justify-center hover:bg-gray-100" style="color: ${this.state.currentColor};" title="Изменить цвет">
+        <i data-lucide="palette" class="w-5 h-5 pointer-events-none drop-shadow-sm"></i>
+      </button>
+
       <button id="sel-delete" class="w-10 h-10 rounded-lg flex items-center justify-center hover:bg-red-50 text-red-500" title="Удалить"><i data-lucide="trash-2" class="w-5 h-5 pointer-events-none"></i></button>
       ${groupButtonsHtml}
     `;
