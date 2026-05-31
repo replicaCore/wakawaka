@@ -1,4 +1,3 @@
-// src/main.ts
 import { Database } from "./canvas/Database";
 import { State } from "./core/State";
 import { Renderer } from "./canvas/Render";
@@ -17,8 +16,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   const renderer = new Renderer(canvasElement, state);
   let hub: Hub | null = null;
 
-  // НОВОЕ: Перехватываем onUpdate.
-  // Помимо отрисовки экрана, он теперь сигналит Хабу о том, что холст изменился
   state.onUpdate = () => {
     renderer.render();
     if (hub) hub.triggerAutosave();
@@ -36,14 +33,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     await db.init();
     hub = new Hub(db, state, canvasElement);
 
-    // Инициализируем Хаб (он сам решит, показать меню или открыть холст по URL)
     await hub.init();
   } catch (e) {
     console.error("Failed to init database", e);
-    alert("Ваш браузер не поддерживает сохранение проектов.");
   }
 
-  // БЕЗОПАСНОСТЬ: Если пользователь пытается закрыть вкладку на ПК во время сохранения
   window.addEventListener("beforeunload", (e) => {
     if (state.isDirty) {
       e.preventDefault();
@@ -51,7 +45,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // БЕЗОПАСНОСТЬ ДЛЯ PWA/МОБИЛЬНЫХ: Тихое сохранение при сворачивании приложения
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden" && state.isDirty && hub) {
       hub.forceSave();

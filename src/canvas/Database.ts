@@ -7,6 +7,8 @@ export class Database {
   private db: IDBDatabase | null = null;
 
   public async init(): Promise<void> {
+    await this.requestPersistentStorage();
+
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.dbName, 1);
       request.onupgradeneeded = () => {
@@ -66,5 +68,30 @@ export class Database {
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
+  }
+
+  private async requestPersistentStorage() {
+    if (navigator.storage && navigator.storage.persist) {
+      try {
+        const isPersisted = await navigator.storage.persisted();
+        if (isPersisted) {
+          console.log("✅ Хранилище защищено от очистки (уже Persistent).");
+          return;
+        }
+
+        const granted = await navigator.storage.persist();
+        if (granted) {
+          console.log("✅ Android разрешил Persistent Storage!");
+        } else {
+          console.warn(
+            "⚠️ Persistent Storage отклонено. Данные могут быть удалены при нехватке места. Установите приложение (PWA), чтобы защитить данные.",
+          );
+        }
+      } catch (error) {
+        console.error("Ошибка при запросе Persistent Storage:", error);
+      }
+    } else {
+      console.warn("⚠️ Браузер не поддерживает Persistent Storage API.");
+    }
   }
 }
