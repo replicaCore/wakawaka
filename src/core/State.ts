@@ -1,4 +1,3 @@
-// src/core/State.ts
 import type {
   Camera,
   Coordinate,
@@ -42,7 +41,6 @@ export class State {
 
   public onUpdate: () => void = () => {};
   public onUIUpdate: () => void = () => {};
-  public eraserMode: "partial" | "stroke" = "partial";
 
   private uiListeners: (() => void)[] = [];
 
@@ -64,67 +62,11 @@ export class State {
     this.onUpdate();
   }
 
-  public eraseStrokeAt(point: Coordinate) {
-    const radius = this.currentPen.size / 2;
-    const initialLength = this.strokes.length;
-    this.strokes = this.strokes.filter((stroke) => {
-      return !stroke.points.some(
-        (p) => Math.hypot(p.x - point.x, p.y - point.y) < radius,
-      );
-    });
-    if (this.strokes.length !== initialLength) this.onUpdate();
-  }
-
-  public erasePartialAt(point: Coordinate) {
-    const radius = this.currentPen.size / 2;
-    const newStrokes: Stroke[] = [];
-    let changed = false;
-
-    for (const stroke of this.strokes) {
-      let currentSegment: Point[] = [];
-      let strokeChanged = false;
-      for (const p of stroke.points) {
-        if (Math.hypot(p.x - point.x, p.y - point.y) < radius) {
-          strokeChanged = true;
-          changed = true;
-          if (currentSegment.length > 0) {
-            newStrokes.push({
-              ...stroke,
-              points: currentSegment,
-              groupIds: stroke.groupIds ? [...stroke.groupIds] : undefined,
-            });
-            currentSegment = [];
-          }
-        } else {
-          currentSegment.push(p);
-        }
-      }
-      if (strokeChanged && currentSegment.length > 0) {
-        newStrokes.push({
-          ...stroke,
-          points: currentSegment,
-          groupIds: stroke.groupIds ? [...stroke.groupIds] : undefined,
-        });
-      } else if (!strokeChanged) {
-        newStrokes.push(stroke);
-      }
-    }
-    if (changed) {
-      this.strokes = newStrokes;
-      this.onUpdate();
-    }
-  }
-
   public setPen(index: number) {
     this.currentPen = this.pens[index];
     this.selectedStrokes.clear();
     this.selectionMode = "move";
     this.onUpdate();
-    this.triggerUIUpdate();
-  }
-
-  public setEraserMode(mode: "partial" | "stroke") {
-    this.eraserMode = mode;
     this.triggerUIUpdate();
   }
 
@@ -355,14 +297,20 @@ export class State {
     this.triggerUIUpdate();
   }
 
-  // НОВОЕ: Получить данные для сохранения
-  public getProjectData() {
+  public getProjectData(): Project {
     return {
       id: this.currentProjectId!,
       name: this.currentProjectName,
+      thumbnail: "",
+      updatedAt: Date.now(),
       strokes: this.strokes,
       backgroundColor: this.backgroundColor,
       camera: this.camera,
     };
+  }
+
+  public setPenSize(size: number) {
+    this.currentPen.size = size;
+    this.triggerUIUpdate();
   }
 }

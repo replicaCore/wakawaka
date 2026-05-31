@@ -10,6 +10,7 @@
   <body
     class="overflow-hidden w-screen h-screen m-0 p-0 bg-gray-50 text-gray-800"
   >
+    <!-- ЭКРАН ХАБА -->
     <div
       id="hub-screen"
       class="w-full h-full p-6 overflow-y-auto absolute inset-0 z-50 bg-gray-50 flex flex-col"
@@ -18,20 +19,37 @@
         class="flex justify-between items-center mb-8 max-w-5xl mx-auto w-full"
       >
         <h1 class="text-3xl font-bold">Мои холсты</h1>
-        <button
-          id="new-project-btn"
-          class="bg-blue-500 hover:bg-blue-600 text-white px-5 py-3 rounded-2xl font-bold shadow-sm transition-colors"
-        >
-          + Новый холст
-        </button>
+        <div class="flex gap-3">
+          <button
+            id="import-btn"
+            class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-5 py-3 rounded-2xl font-bold shadow-sm transition-colors"
+          >
+            📥 Загрузить
+          </button>
+          <input
+            type="file"
+            id="import-file-input"
+            class="hidden"
+            accept=".json,.svg"
+          />
+
+          <button
+            id="new-project-btn"
+            class="bg-blue-500 hover:bg-blue-600 text-white px-5 py-3 rounded-2xl font-bold shadow-sm transition-colors"
+          >
+            + Новый холст
+          </button>
+        </div>
       </div>
 
+      <!-- Сюда будут загружаться карточки с проектами -->
       <div
         id="projects-grid"
-        class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6 max-w-5xl mx-auto w-full pb-10"
+        class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6 max-w-5xl mx-auto w-full pb-20"
       ></div>
     </div>
 
+    <!-- ЭКРАН РЕДАКТОРА -->
     <div id="editor-screen" class="hidden w-full h-full absolute inset-0">
       <button
         id="back-to-hub-btn"
@@ -40,10 +58,9 @@
         &larr; В галерею
       </button>
 
-      <!-- Старый UI (Тулбары, настройки и т.д.) -->
+      <!-- UI (Тулбары) -->
       <div id="UI" class="absolute inset-0 z-10 pointer-events-none">
         <div class="flex justify-center items-start p-4 w-full">
-          <!-- Кнопки Undo/Redo выровнены по центру, чтобы не мешать кнопке "Назад" -->
           <div
             id="UI button"
             class="flex gap-2 pointer-events-auto mr-auto ml-32"
@@ -81,12 +98,6 @@
             >
               ⚙️
             </button>
-            <button
-              id="eraser-mode-btn"
-              class="hidden text-xs bg-gray-200 text-gray-700 font-medium rounded px-2 py-2 hover:bg-gray-300 ml-1"
-            >
-              Частично
-            </button>
           </div>
         </div>
 
@@ -96,7 +107,7 @@
         ></div>
       </div>
 
-      <!-- Модалка настроек (Осталась как есть) -->
+      <!-- Модалка настроек -->
       <div
         id="settings-modal"
         class="hidden absolute inset-0 bg-black/40 z-50 pointer-events-auto flex items-center justify-center backdrop-blur-sm"
@@ -113,7 +124,7 @@
               ✕
             </button>
           </div>
-          <div class="flex border-b bg-gray-50">
+          <div class="flex border-b bg-gray-50 text-sm">
             <button
               class="settings-tab flex-1 py-2 border-b-2 border-blue-500 font-semibold"
               data-tab="canvas"
@@ -131,6 +142,12 @@
               data-tab="colors"
             >
               Цвета
+            </button>
+            <button
+              class="settings-tab flex-1 py-2 border-b-2 border-transparent text-gray-500"
+              data-tab="export"
+            >
+              Экспорт
             </button>
           </div>
           <div id="settings-content" class="p-4 overflow-y-auto flex-1"></div>

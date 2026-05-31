@@ -11,7 +11,6 @@ export function renderPensTab(
   list.className = "flex flex-col gap-3 mb-4 pr-2 max-h-[55vh] overflow-y-auto";
 
   state.pens.forEach((pen, i) => {
-    const isEraser = pen.isEraser;
     const isSelector = pen.isSelector;
     const item = document.createElement("div");
     item.className =
@@ -19,22 +18,19 @@ export function renderPensTab(
 
     const header = document.createElement("div");
     header.className = "flex justify-between items-center";
-    const isNextEraser =
-      i < state.pens.length - 1 && state.pens[i + 1].isEraser;
 
     let toolName = "Кисть " + (i + 1);
-    if (isEraser) toolName = "Ластик";
     if (isSelector) toolName = "Выделение";
 
     header.innerHTML = `
       <div class="flex items-center gap-2">
-        <input type="text" class="w-10 h-10 text-center text-lg rounded border bg-white outline-none focus:ring-2 focus:ring-blue-400" value="${pen.icon}" ${isEraser || isSelector ? "disabled" : ""} />
+        <input type="text" class="w-10 h-10 text-center text-lg rounded border bg-white outline-none focus:ring-2 focus:ring-blue-400" value="${pen.icon}" ${isSelector ? "disabled" : ""} />
         <span class="font-bold text-gray-700">${toolName}</span>
       </div>
       <div class="flex gap-1">
-        ${!isEraser && !isSelector && i > 0 ? `<button class="w-7 h-7 bg-white rounded shadow text-xs hover:bg-gray-200 up-btn">▲</button>` : ""}
-        ${!isEraser && !isSelector && !isNextEraser ? `<button class="w-7 h-7 bg-white rounded shadow text-xs hover:bg-gray-200 down-btn">▼</button>` : ""}
-        ${!isEraser && !isSelector ? `<button class="w-7 h-7 bg-red-50 text-red-500 rounded shadow text-xs hover:bg-red-100 del-btn">✕</button>` : ""}
+        ${!isSelector && i > 0 ? `<button class="w-7 h-7 bg-white rounded shadow text-xs hover:bg-gray-200 up-btn">▲</button>` : ""}
+        ${!isSelector && i < state.pens.length - 1 ? `<button class="w-7 h-7 bg-white rounded shadow text-xs hover:bg-gray-200 down-btn">▼</button>` : ""}
+        ${!isSelector ? `<button class="w-7 h-7 bg-red-50 text-red-500 rounded shadow text-xs hover:bg-red-100 del-btn">✕</button>` : ""}
       </div>
     `;
 
@@ -89,7 +85,7 @@ export function renderPensTab(
             <input type="checkbox" ${pen.simulatePressure ? "checked" : ""} class="prop-pressure rounded">
             <span>Имитация нажима</span>
           </label>
-          ${!isEraser ? `<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" ${pen.isMarker ? "checked" : ""} class="prop-marker rounded"><span>Выделитель</span></label>` : ""}
+          ${`<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" ${pen.isMarker ? "checked" : ""} class="prop-marker rounded"><span>Выделитель</span></label>`}
         </div>
       `;
 
@@ -114,12 +110,6 @@ export function renderPensTab(
         pen.simulatePressure = (e.target as HTMLInputElement).checked;
       });
 
-      if (!isEraser) {
-        form.querySelector(".prop-marker")?.addEventListener("change", (e) => {
-          pen.isMarker = (e.target as HTMLInputElement).checked;
-          state.onUpdate();
-        });
-      }
       item.appendChild(form);
     }
     list.appendChild(item);
@@ -139,12 +129,6 @@ export function renderPensTab(
       streamline: 0.5,
       simulatePressure: true,
     };
-    const eraserIdx = state.pens.findIndex((p) => p.isEraser);
-    state.pens.splice(
-      eraserIdx !== -1 ? eraserIdx : state.pens.length,
-      0,
-      newPen,
-    );
     state.triggerUIUpdate();
     reRender();
     setTimeout(

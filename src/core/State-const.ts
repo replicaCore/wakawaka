@@ -51,13 +51,4 @@ export const PEN_PRESETS: PenOptions[] = [
     simulatePressure: false,
     isMarker: true,
   },
-  {
-    icon: "🧽",
-    size: 30,
-    thinning: 0,
-    smoothing: 0.5,
-    streamline: 0.5,
-    simulatePressure: false,
-    isEraser: true,
-  },
 ];

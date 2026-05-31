@@ -1,6 +1,7 @@
 import type { State } from "../../core/State";
 import { renderCanvasTab } from "./CanvasTab";
 import { renderColorsTab } from "./ColorsTab";
+import { renderExportTab } from "./ExportTab";
 import { renderPensTab } from "./PensTab";
 
 export class Settings {
@@ -62,5 +63,6 @@ export class Settings {
       renderColorsTab(this.content, this.state, this.renderContent);
     if (this.activeTab === "pens")
       renderPensTab(this.content, this.state, this.renderContent);
+    if (this.activeTab === "export") renderExportTab(this.content, this.state);
   };
 }

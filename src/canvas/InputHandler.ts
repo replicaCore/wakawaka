@@ -80,24 +80,17 @@ export class InputHandler {
           { x: worldPt.x, y: worldPt.y, pressure: e.pressure || 0.5 },
         ];
         this.state.onUpdate();
-        this.state.triggerUIUpdate(); // Скрыть UI тулбар на время рисования Лассо
+        this.state.triggerUIUpdate();
       }
       return;
     }
 
     this.isDrawing = true;
-    if (this.state.currentPen.isEraser) {
-      this.state.saveHistory();
-      this.state.eraserMode === "stroke"
-        ? this.state.eraseStrokeAt(worldPt)
-        : this.state.erasePartialAt(worldPt);
-    } else {
-      this.state.addPoint({
-        x: worldPt.x,
-        y: worldPt.y,
-        pressure: e.pressure || 0.5,
-      });
-    }
+    this.state.addPoint({
+      x: worldPt.x,
+      y: worldPt.y,
+      pressure: e.pressure || 0.5,
+    });
   };
 
   private handlePointerMove = (e: PointerEvent) => {
@@ -154,17 +147,11 @@ export class InputHandler {
 
     if (!this.isDrawing) return;
 
-    if (this.state.currentPen.isEraser) {
-      this.state.eraserMode === "stroke"
-        ? this.state.eraseStrokeAt(worldPt)
-        : this.state.erasePartialAt(worldPt);
-    } else {
-      this.state.addPoint({
-        x: worldPt.x,
-        y: worldPt.y,
-        pressure: e.pressure || 0.5,
-      });
-    }
+    this.state.addPoint({
+      x: worldPt.x,
+      y: worldPt.y,
+      pressure: e.pressure || 0.5,
+    });
   };
 
   private handlePointerUp = () => {
@@ -180,10 +167,7 @@ export class InputHandler {
 
     if (this.isDrawing) {
       this.isDrawing = false;
-      if (
-        !this.state.currentPen.isEraser &&
-        !this.state.currentPen.isSelector
-      ) {
+      if (!this.state.currentPen.isSelector) {
         this.state.endStroke();
       }
     }

@@ -1,6 +1,6 @@
-// src/ui/Hub.ts
 import type { Database } from "../canvas/Database";
 import type { State } from "../core/State";
+import { importFile } from "../fileUtils";
 import type { Project } from "../type";
 
 export class Hub {
@@ -26,6 +26,26 @@ export class Hub {
     document
       .getElementById("back-to-hub-btn")
       ?.addEventListener("click", () => this.saveAndGoToHub());
+
+    document.getElementById("import-btn")?.addEventListener("click", () => {
+      document.getElementById("import-file-input")?.click();
+    });
+
+    document
+      .getElementById("import-file-input")
+      ?.addEventListener("change", async (e) => {
+        const input = e.target as HTMLInputElement;
+        if (!input.files || input.files.length === 0) return;
+
+        const file = input.files[0];
+        const project = await importFile(file);
+
+        if (project) {
+          project.id = Date.now().toString(); // Чтобы не перезаписать оригинал при импорте
+          this.openProject(project);
+        }
+        input.value = ""; // Сброс инпута
+      });
   }
 
   // НОВОЕ: Инициализация с поддержкой Deep Linking

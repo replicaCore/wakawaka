@@ -19,7 +19,6 @@ export type PenOptions = {
   streamline: number;
   simulatePressure: boolean;
   isMarker?: boolean;
-  isEraser?: boolean;
   isSelector?: boolean;
 };
 
