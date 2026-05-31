@@ -8,7 +8,7 @@ export class Hub {
   private db: Database;
   private state: State;
   private canvas: HTMLCanvasElement;
-  private autosaveTimer: number | null = null; // НОВОЕ: Таймер автосохранения
+  private autosaveTimer: number | null = null;
 
   private hubScreen = document.getElementById("hub-screen") as HTMLDivElement;
   private editorScreen = document.getElementById(
@@ -67,15 +67,15 @@ export class Hub {
     this.renderGrid();
   }
 
-  // НОВОЕ: Вызов автосохранения из main.ts (debounce 3 секунды)
   public triggerAutosave() {
     if (!this.state.currentProjectId) return;
-    this.state.isDirty = true; // Помечаем, что есть изменения
 
     if (this.autosaveTimer) clearTimeout(this.autosaveTimer);
 
     this.autosaveTimer = window.setTimeout(() => {
-      this.saveCurrentProject();
+      if (this.state.isDirty) {
+        this.saveCurrentProject();
+      }
     }, 3000) as unknown as number;
   }
 
@@ -112,7 +112,7 @@ export class Hub {
     if (!this.state.currentProjectId) return;
 
     const thumbnail = this.generateThumbnail();
-    const data = this.state.getProjectData();
+    const data = this.state.getProjectData(false);
 
     await this.db.saveProject({
       ...data,
@@ -120,14 +120,16 @@ export class Hub {
       updatedAt: Date.now(),
     });
 
-    this.state.isDirty = false; // Сохранено!
+    this.state.isDirty = false;
   }
 
   private async saveAndGoToHub() {
-    await this.saveCurrentProject();
+    if (this.state.isDirty) {
+      await this.saveCurrentProject();
+    }
+
     this.showHub();
     this.renderGrid();
-    // Очищаем URL, убирая ?id=...
     window.history.replaceState({}, document.title, window.location.pathname);
   }
 

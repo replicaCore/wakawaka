@@ -1,4 +1,5 @@
 // src/canvas/InputHandler.ts
+import { round1 } from "../utils";
 import type { State } from "../core/State";
 import type { Coordinate } from "../type";
 
@@ -88,9 +89,9 @@ export class InputHandler {
 
     this.isDrawing = true;
     this.state.addPoint({
-      x: worldPt.x,
-      y: worldPt.y,
-      pressure: e.pressure || 0.5,
+      x: round1(worldPt.x),
+      y: round1(worldPt.y),
+      pressure: round1(e.pressure || 0.5),
     });
   };
 
@@ -110,9 +111,9 @@ export class InputHandler {
 
     if (this.isDrawingLasso) {
       this.state.lassoPath.push({
-        x: worldPt.x,
-        y: worldPt.y,
-        pressure: e.pressure || 0.5,
+        x: round1(worldPt.x),
+        y: round1(worldPt.y),
+        pressure: round1(e.pressure || 0.5),
       });
       this.state.updateLassoSelection();
       this.state.onUpdate();
@@ -153,9 +154,9 @@ export class InputHandler {
     if (!this.isDrawing) return;
 
     this.state.addPoint({
-      x: worldPt.x,
-      y: worldPt.y,
-      pressure: e.pressure || 0.5,
+      x: round1(worldPt.x),
+      y: round1(worldPt.y),
+      pressure: round1(e.pressure || 0.5),
     });
   };
 

@@ -1,4 +1,6 @@
 // src/utils.ts
+export const round1 = (num: number) => Math.round(num * 10) / 10;
+
 import type { Coordinate } from "./type";
 
 export const average = (a: number, b: number) => (a + b) / 2;

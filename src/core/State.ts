@@ -1,3 +1,4 @@
+import { pointInPolygon, round1 } from "../utils";
 import type {
   Camera,
   Coordinate,
@@ -7,7 +8,6 @@ import type {
   Stroke,
 } from "../type";
 import { PEN_PRESETS } from "./State-const";
-import { pointInPolygon } from "../utils";
 
 export class State {
   public currentProjectId: string | null = null;
@@ -54,9 +54,13 @@ export class State {
     this.uiListeners.forEach((fn) => fn());
   }
 
+  public markDirty() {
+    this.isDirty = true;
+  }
+
   public saveHistory() {
     this.history.push(JSON.parse(JSON.stringify(this.strokes)));
-    if (this.history.length > 100) {
+    if (this.history.length > 10) {
       this.history.shift();
     }
     this.redoHistory = [];
@@ -84,6 +88,7 @@ export class State {
         pen: { ...this.currentPen },
       });
       this.currentStroke = [];
+      this.markDirty();
       this.onUpdate();
     }
   }
@@ -93,6 +98,7 @@ export class State {
       this.redoHistory.push(JSON.parse(JSON.stringify(this.strokes)));
       this.strokes = this.history.pop()!;
       this.selectedStrokes.clear();
+      this.markDirty();
       this.onUpdate();
       this.triggerUIUpdate();
     }
@@ -103,6 +109,7 @@ export class State {
       this.history.push(JSON.parse(JSON.stringify(this.strokes)));
       this.strokes = this.redoHistory.pop()!;
       this.selectedStrokes.clear();
+      this.markDirty();
       this.onUpdate();
       this.triggerUIUpdate();
     }
@@ -201,6 +208,7 @@ export class State {
     this.saveHistory();
     this.strokes = this.strokes.filter((s) => !this.selectedStrokes.has(s));
     this.selectedStrokes.clear();
+    this.markDirty();
     this.onUpdate();
     this.triggerUIUpdate();
   }
@@ -211,16 +219,21 @@ export class State {
     for (const stroke of this.selectedStrokes) {
       stroke.color = this.currentColor;
     }
+    this.markDirty();
     this.onUpdate();
   }
+
+  // Не забудьте импортировать round1 в начале файла State.ts:
+  //
 
   public moveSelected(dx: number, dy: number) {
     for (const stroke of this.selectedStrokes) {
       for (const p of stroke.points) {
-        p.x += dx;
-        p.y += dy;
+        p.x = round1(p.x + dx);
+        p.y = round1(p.y + dy);
       }
     }
+    this.markDirty();
     this.onUpdate();
     this.triggerUIUpdate();
   }
@@ -228,11 +241,12 @@ export class State {
   public scaleSelected(scale: number, origin: Coordinate) {
     for (const stroke of this.selectedStrokes) {
       for (const p of stroke.points) {
-        p.x = origin.x + (p.x - origin.x) * scale;
-        p.y = origin.y + (p.y - origin.y) * scale;
+        p.x = round1(origin.x + (p.x - origin.x) * scale);
+        p.y = round1(origin.y + (p.y - origin.y) * scale);
       }
-      stroke.pen.size *= scale;
+      stroke.pen.size = round1(stroke.pen.size * scale);
     }
+    this.markDirty();
     this.onUpdate();
     this.triggerUIUpdate();
   }
@@ -246,6 +260,7 @@ export class State {
       if (!stroke.groupIds) stroke.groupIds = [];
       stroke.groupIds.push(newGroupId);
     }
+    this.markDirty();
     this.onUpdate();
     this.triggerUIUpdate();
   }
@@ -270,6 +285,7 @@ export class State {
       }
     }
 
+    this.markDirty();
     this.onUpdate();
     this.triggerUIUpdate();
   }
@@ -321,7 +337,7 @@ export class State {
     this.triggerUIUpdate();
   }
 
-  public getProjectData(): Project {
+  public getProjectData(includeHistory = false): Project {
     return {
       id: this.currentProjectId!,
       name: this.currentProjectName,
@@ -335,9 +351,8 @@ export class State {
       activeSizeIndex: this.activeSizeIndex,
       penOptions: this.pens[0],
 
-      // Отправляем историю в БД/JSON
-      history: this.history,
-      redoHistory: this.redoHistory,
+      history: includeHistory ? this.history : [],
+      redoHistory: includeHistory ? this.redoHistory : [],
     };
   }
 
@@ -346,13 +361,15 @@ export class State {
       this.activeSizeIndex = index;
       this.pens[0].size = this.penSizes[index]; // Теперь индекс кисти - 0
       this.triggerUIUpdate();
-      this.onUpdate(); // Сохраняем в БД при смене размера
+      this.markDirty();
+      this.onUpdate();
     }
   }
 
   public togglePressure(val: boolean) {
     this.pens[0].simulatePressure = val; // Теперь индекс кисти - 0
     this.triggerUIUpdate();
-    this.onUpdate(); // Сохраняем в БД при смене нажима
+    this.markDirty();
+    this.onUpdate();
   }
 }

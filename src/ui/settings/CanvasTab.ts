@@ -1,4 +1,3 @@
-// src/ui/settings/CanvasTab.ts
 import type { State } from "../../core/State";
 
 export function renderCanvasTab(content: HTMLDivElement, state: State) {
@@ -17,12 +16,14 @@ export function renderCanvasTab(content: HTMLDivElement, state: State) {
 
   document.getElementById("bg-color-picker")?.addEventListener("input", (e) => {
     state.backgroundColor = (e.target as HTMLInputElement).value;
+    state.markDirty();
     state.onUpdate();
   });
   document
     .getElementById("invert-checkbox")
     ?.addEventListener("change", (e) => {
       state.invertColors = (e.target as HTMLInputElement).checked;
+      state.markDirty();
       state.onUpdate();
     });
 }
