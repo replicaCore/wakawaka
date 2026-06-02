@@ -217,6 +217,7 @@ export class State {
 
   public moveSelected(dx: number, dy: number) {
     for (const stroke of this.selectedStrokes) {
+      stroke.bounds = undefined;
       for (const p of stroke.points) {
         p.x = round1(p.x + dx);
         p.y = round1(p.y + dy);
@@ -229,6 +230,7 @@ export class State {
 
   public scaleSelected(scale: number, origin: Coordinate) {
     for (const stroke of this.selectedStrokes) {
+      stroke.bounds = undefined;
       for (const p of stroke.points) {
         p.x = round1(origin.x + (p.x - origin.x) * scale);
         p.y = round1(origin.y + (p.y - origin.y) * scale);

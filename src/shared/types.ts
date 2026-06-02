@@ -9,6 +9,7 @@ export type Stroke = {
   color: string;
   pen: PenOptions;
   groupIds?: string[];
+  bounds?: { minX: number; minY: number; maxX: number; maxY: number };
 };
 
 export type PenOptions = {

@@ -3,7 +3,7 @@ import { getSvgPathFromStroke } from "../shared/utils";
 import type { State } from "../core/State";
 import type { PenOptions, Point, Stroke } from "../shared/types";
 
-export class Renderer {
+export class Render {
   private ctx: CanvasRenderingContext2D;
   private canvas: HTMLCanvasElement;
   private state: State;
@@ -42,7 +42,28 @@ export class Renderer {
   };
 
   private drawAllStrokes() {
+    const { camera } = this.state;
+    const vpMinX = -camera.x / camera.zoom;
+    const vpMinY = -camera.y / camera.zoom;
+    const vpMaxX = (this.canvas.width - camera.x) / camera.zoom;
+    const vpMaxY = (this.canvas.height - camera.y) / camera.zoom;
+
     for (const stroke of this.state.strokes) {
+      if (!stroke.bounds) {
+        stroke.bounds = this.computeStrokeBounds(stroke);
+      }
+
+      const b = stroke.bounds;
+      if (
+        b &&
+        (b.maxX < vpMinX ||
+          b.minX > vpMaxX ||
+          b.maxY < vpMinY ||
+          b.minY > vpMaxY)
+      ) {
+        continue;
+      }
+
       this.ctx.fillStyle = stroke.color;
       this.drawPerfectStroke(stroke.points, stroke.pen);
     }
@@ -53,21 +74,47 @@ export class Renderer {
     }
   }
 
-  // НОВОЕ: Вспомогательная функция вычисления границ для массива векторов
+  private computeStrokeBounds(stroke: Stroke) {
+    if (stroke.points.length === 0) return undefined;
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    const padding = stroke.pen.size / 2 + 5;
+
+    for (const p of stroke.points) {
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    }
+
+    return {
+      minX: minX - padding,
+      minY: minY - padding,
+      maxX: maxX + padding,
+      maxY: maxY + padding,
+    };
+  }
+
   private getBoundsForStrokes(strokes: Iterable<Stroke>) {
     let minX = Infinity,
       minY = Infinity,
       maxX = -Infinity,
       maxY = -Infinity;
     let hasPoints = false;
+
     for (const stroke of strokes) {
-      const padding = stroke.pen.size / 2 + 5;
-      for (const p of stroke.points) {
+      if (!stroke.bounds) {
+        stroke.bounds = this.computeStrokeBounds(stroke);
+      }
+      const b = stroke.bounds;
+      if (b) {
         hasPoints = true;
-        if (p.x - padding < minX) minX = p.x - padding;
-        if (p.y - padding < minY) minY = p.y - padding;
-        if (p.x + padding > maxX) maxX = p.x + padding;
-        if (p.y + padding > maxY) maxY = p.y + padding;
+        if (b.minX < minX) minX = b.minX;
+        if (b.minY < minY) minY = b.minY;
+        if (b.maxX > maxX) maxX = b.maxX;
+        if (b.maxY > maxY) maxY = b.maxY;
       }
     }
     if (!hasPoints) return null;

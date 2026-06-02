@@ -1,5 +1,5 @@
 import { State } from "./core/State";
-import { Renderer } from "./canvas/Renderer";
+import { Render } from "./canvas/Render";
 import { InputHandler } from "./canvas/InputHandler";
 import { Database } from "./services/Database";
 import { AutosaveService } from "./services/Autosave";
@@ -23,7 +23,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const state = new State();
 
   // 2. Инициализация Canvas
-  const renderer = new Renderer(canvasElement, state);
+  const renderer = new Render(canvasElement, state);
   new InputHandler(canvasElement, state);
 
   // 3. Инициализация Сервисов
