@@ -105,7 +105,15 @@ export class InputHandler {
 
     const worldPt = this.getScreenToWorld(e.clientX, e.clientY);
 
+    const threshold = 2 / this.state.camera.zoom;
+
     if (this.isDrawingLasso) {
+      const lastPt = this.state.lassoPath[this.state.lassoPath.length - 1];
+      if (lastPt) {
+        const dist = Math.hypot(worldPt.x - lastPt.x, worldPt.y - lastPt.y);
+        if (dist < threshold) return;
+      }
+
       this.state.lassoPath.push({
         x: round1(worldPt.x),
         y: round1(worldPt.y),
@@ -147,6 +155,13 @@ export class InputHandler {
     }
 
     if (!this.isDrawing) return;
+
+    const lastPt =
+      this.state.currentStroke[this.state.currentStroke.length - 1];
+    if (lastPt) {
+      const dist = Math.hypot(worldPt.x - lastPt.x, worldPt.y - lastPt.y);
+      if (dist < threshold) return;
+    }
 
     this.state.addPoint({
       x: round1(worldPt.x),
