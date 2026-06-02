@@ -7,6 +7,7 @@ export class Render {
   private ctx: CanvasRenderingContext2D;
   private canvas: HTMLCanvasElement;
   private state: State;
+  private renderPending = false;
 
   constructor(canvas: HTMLCanvasElement, state: State) {
     this.canvas = canvas;
@@ -23,6 +24,15 @@ export class Render {
   }
 
   public render = () => {
+    if (!this.renderPending) {
+      this.renderPending = true;
+      requestAnimationFrame(this.draw);
+    }
+  };
+
+  private draw = () => {
+    this.renderPending = false;
+
     this.ctx.resetTransform();
     this.ctx.fillStyle = this.state.backgroundColor;
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
