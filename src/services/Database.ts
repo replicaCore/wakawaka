@@ -9,11 +9,14 @@ export class Database {
     await this.requestPersistentStorage();
 
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open(this.dbName, 1);
+      const request = indexedDB.open(this.dbName, 2);
       request.onupgradeneeded = () => {
         const db = request.result;
         if (!db.objectStoreNames.contains(this.storeName)) {
           db.createObjectStore(this.storeName, { keyPath: "id" });
+        }
+        if (!db.objectStoreNames.contains("library")) {
+          db.createObjectStore("library", { keyPath: "id" });
         }
       };
       request.onsuccess = () => {
@@ -21,6 +24,42 @@ export class Database {
         resolve();
       };
       request.onerror = () => reject(request.error);
+    });
+  }
+
+  public async getAllLibraryItems(): Promise<any[]> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) return reject("DB not init");
+      const req = this.db
+        .transaction("library", "readonly")
+        .objectStore("library")
+        .getAll();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  public async saveLibraryItem(item: any): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) return reject("DB not init");
+      const req = this.db
+        .transaction("library", "readwrite")
+        .objectStore("library")
+        .put(item);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  public async deleteLibraryItem(id: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) return reject("DB not init");
+      const req = this.db
+        .transaction("library", "readwrite")
+        .objectStore("library")
+        .delete(id);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
     });
   }
 

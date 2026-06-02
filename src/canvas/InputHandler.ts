@@ -69,6 +69,12 @@ export class InputHandler {
 
     const worldPt = this.getScreenToWorld(e.clientX, e.clientY);
 
+    if (this.state.spawningLibraryItem) {
+      this.state.spawnLibraryItem(worldPt);
+      this.canvas.style.cursor = "";
+      return;
+    }
+
     if (this.state.currentPen.isSelector) {
       if (this.state.isPointInSelectionBox(worldPt)) {
         this.isDraggingSelection = true;
@@ -209,6 +215,12 @@ export class InputHandler {
   };
 
   private updateCursorVisual(e: PointerEvent) {
+    if (this.state.spawningLibraryItem) {
+      this.canvas.style.cursor = "crosshair";
+      this.cursorCircle.classList.add("hidden");
+      return;
+    }
+
     if (e.pointerType !== "touch" && !this.state.currentPen.isSelector) {
       this.cursorCircle.classList.remove("hidden");
       const visualSize = this.state.currentPen.size * this.state.camera.zoom;

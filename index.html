@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body
-    class="overflow-hidden w-screen h-screen m-0 p-0 bg-gray-50 text-gray-800"
+    class="overflow-hidden w-screen h-screen m-0 p-0 bg-gray-50 text-gray-800 select-none"
   >
     <!-- ЭКРАН ХАБА -->
     <div
@@ -48,7 +48,16 @@
     </div>
 
     <!-- ЭКРАН РЕДАКТОРА -->
-    <div id="editor-screen" class="hidden w-full h-full absolute inset-0">
+    <div
+      id="editor-screen"
+      class="hidden w-full h-full absolute inset-0 overflow-hidden"
+    >
+      <!-- Контейнер холста (на заднем плане) -->
+      <div id="canvas-container" class="absolute inset-0 z-0">
+        <canvas id="app" class="touch-none w-full h-full block"></canvas>
+      </div>
+
+      <!-- Кнопка Назад (поверх холста) -->
       <button
         id="back-to-hub-btn"
         class="absolute bottom-4 left-4 z-20 bg-white/80 hover:bg-white backdrop-blur-sm px-4 py-3 rounded-2xl shadow-sm font-bold text-gray-700 pointer-events-auto transition-colors flex items-center gap-2"
@@ -56,25 +65,28 @@
         <i data-lucide="arrow-left" class="w-5 h-5"></i>
       </button>
 
-      <!-- UI (Тулбары) -->
+      <!-- UI (Тулбары поверх холста) -->
       <div id="UI" class="absolute inset-0 z-10 pointer-events-none">
         <div class="grid grid-cols-3 p-4 w-full items-start">
           <!-- Кнопки Undo/Redo -->
           <div id="UI-button" class="flex gap-2 pointer-events-auto">
             <button
               id="undo"
+              aria-label="Отменить действие"
               class="w-12 h-12 bg-blue-50 text-cyan-500 rounded-xl shadow-sm hover:bg-blue-100 transition flex items-center justify-center"
             >
               <i data-lucide="undo" class="w-6 h-6"></i>
             </button>
             <button
               id="redo"
+              aria-label="Повторить действие"
               class="w-12 h-12 bg-blue-50 text-cyan-500 rounded-xl shadow-sm hover:bg-blue-100 transition flex items-center justify-center"
             >
               <i data-lucide="redo" class="w-6 h-6"></i>
             </button>
           </div>
 
+          <!-- Быстрые настройки размера -->
           <div class="flex justify-center">
             <div
               id="UI-quick-settings"
@@ -101,28 +113,70 @@
             </div>
           </div>
 
+          <!-- Инструменты справа -->
           <div
-            id="UI-pens"
-            class="flex gap-2 pointer-events-auto bg-white/80 p-1.5 rounded-2xl shadow-sm backdrop-blur-sm items-center justify-end ml-auto"
+            class="flex flex-col items-end gap-2 ml-auto pointer-events-none"
           >
-            <div id="pens-container" class="flex gap-2"></div>
-            <div class="w-px h-6 bg-gray-300 mx-1"></div>
-            <button
-              id="settings-open-btn"
-              class="w-10 h-10 rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center text-gray-700"
+            <div
+              id="UI-pens"
+              class="flex gap-2 pointer-events-auto bg-white/80 p-1.5 rounded-2xl shadow-sm backdrop-blur-sm items-center justify-end"
             >
-              <i data-lucide="settings" class="w-5 h-5"></i>
+              <div id="pens-container" class="flex gap-2"></div>
+              <div class="w-px h-6 bg-gray-300 mx-1"></div>
+              <button
+                id="settings-open-btn"
+                aria-label="Открыть настройки кисти"
+                class="w-10 h-10 rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center text-gray-700"
+              >
+                <i data-lucide="settings" class="w-5 h-5"></i>
+              </button>
+            </div>
+
+            <button
+              id="lib-action-btn"
+              aria-label="Открыть библиотеку"
+              class="w-12 h-12 bg-white/80 backdrop-blur-sm shadow-sm rounded-2xl pointer-events-auto flex items-center justify-center text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              <i data-lucide="library" class="w-6 h-6 pointer-events-none"></i>
             </button>
           </div>
         </div>
 
+        <!-- Контейнер палитры (слева) -->
         <div
           id="palette-container"
           class="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-3 pointer-events-auto bg-white/80 p-2 rounded-full shadow-sm backdrop-blur-sm"
         ></div>
+
+        <!-- Панель библиотеки (выдвижная справа) -->
+        <div
+          id="library-panel"
+          class="fixed top-0 right-0 w-80 h-full bg-white/95 backdrop-blur-xl shadow-2xl z-40 flex flex-col pointer-events-auto transform translate-x-full transition-transform duration-300"
+        >
+          <div class="flex justify-between items-center p-5 border-b">
+            <h3 class="font-bold text-gray-800 text-lg">Библиотека</h3>
+            <button
+              id="library-close-btn"
+              aria-label="Закрыть библиотеку"
+              class="text-gray-500 hover:bg-gray-100 w-10 h-10 flex items-center justify-center rounded-full transition-colors"
+            >
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+          <div
+            id="library-grid"
+            class="p-4 grid grid-cols-2 gap-3 overflow-y-auto flex-1 content-start"
+          ></div>
+          <div
+            id="library-status"
+            class="m-4 text-sm text-center font-bold text-blue-500 bg-blue-50 border border-blue-100 py-3 rounded-xl hidden shadow-sm"
+          >
+            Тапните по холсту, чтобы вставить объект
+          </div>
+        </div>
       </div>
 
-      <!-- Модалка настроек -->
+      <!-- Модальное окно настроек (z-50 гарантирует перекрытие всего) -->
       <div
         id="settings-modal"
         class="hidden absolute inset-0 bg-black/40 z-50 pointer-events-auto flex items-center justify-center backdrop-blur-sm"
@@ -134,6 +188,7 @@
             <h2 class="text-xl font-bold">Настройки</h2>
             <button
               id="settings-close-btn"
+              aria-label="Закрыть настройки"
               class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500"
             >
               <i data-lucide="x" class="w-5 h-5"></i>
@@ -169,9 +224,7 @@
         </div>
       </div>
 
-      <div id="canvas-container" class="absolute top-0 left-0 w-full h-full">
-        <canvas id="app" class="touch-none w-full h-full block"></canvas>
-      </div>
+      <!-- Скрытые и служебные элементы -->
       <input
         type="color"
         id="hidden-picker"

@@ -11,6 +11,7 @@ import { Toolbar } from "./ui/components/Toolbar";
 import { Pens } from "./ui/components/Pens";
 import { Settings } from "./ui/components/SettingsModal";
 import { SelectionToolbar } from "./ui/components/SelectionToolbar";
+import { LibraryBar } from "./ui/components/LibraryBar";
 
 // Views
 import { HubView } from "./ui/views/HubView";
@@ -30,6 +31,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   const db = new Database();
   try {
     await db.init();
+
+    state.libraryItems = await db.getAllLibraryItems();
+    state.onLibrarySave = (item) => db.saveLibraryItem(item);
+    state.onLibraryDelete = (id) => db.deleteLibraryItem(id);
   } catch (e) {
     console.error("Failed to init database", e);
   }
@@ -52,6 +57,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   new Pens(state);
   new Settings(state);
   new SelectionToolbar(state);
+  new LibraryBar(state);
 
   // Обработка закрытия вкладки (гарантированное автосохранение)
   window.addEventListener("beforeunload", (e) => {

@@ -22,11 +22,17 @@ export type PenOptions = {
   isSelector?: boolean;
 };
 
+export type LibraryItem = {
+  id: string;
+  strokes: Stroke[];
+  thumbnail: string;
+};
+
 export type Project = {
-  id: string; // Уникальный ID проекта
-  name: string; // Имя
-  thumbnail: string; // Картинка превью (Base64)
-  updatedAt: number; // Время последнего изменения
+  id: string;
+  name: string;
+  thumbnail: string;
+  updatedAt: number;
 
   strokes: Stroke[];
   backgroundColor: string;

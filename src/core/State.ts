@@ -8,6 +8,7 @@ import type {
 } from "../shared/types";
 import { PEN_PRESETS } from "./State-const";
 import { HistoryManager } from "./HistoryManager";
+import type { LibraryItem } from "../shared/types";
 import {
   getSelectionBounds,
   pointInPolygon,
@@ -26,6 +27,11 @@ export class State {
   public selectedStrokes: Set<Stroke> = new Set();
   public lassoPath: Point[] = [];
   public selectionMode: "move" | "scale" = "move";
+
+  public libraryItems: LibraryItem[] = [];
+  public spawningLibraryItem: LibraryItem | null = null;
+  public onLibrarySave: (item: LibraryItem) => void = () => {};
+  public onLibraryDelete: (id: string) => void = () => {};
 
   public camera: Camera = { x: 0, y: 0, zoom: 1 };
   public backgroundColor: string = "#000000";
@@ -343,5 +349,43 @@ export class State {
       history: includeHistory ? history : [],
       redoHistory: includeHistory ? redoHistory : [],
     };
+  }
+
+  public spawnLibraryItem(pt: Coordinate) {
+    if (!this.spawningLibraryItem) return;
+    this.saveHistory();
+
+    const bounds = getSelectionBounds(this.spawningLibraryItem.strokes);
+    if (!bounds) return;
+
+    const cx = (bounds.minX + bounds.maxX) / 2;
+    const cy = (bounds.minY + bounds.maxY) / 2;
+    const dx = pt.x - cx;
+    const dy = pt.y - cy;
+
+    const newStrokes: Stroke[] = JSON.parse(
+      JSON.stringify(this.spawningLibraryItem.strokes),
+    );
+    const newGroupId = Math.random().toString(36).substring(2, 10);
+
+    for (const s of newStrokes) {
+      s.bounds = undefined;
+      if (!s.groupIds) s.groupIds = [];
+      s.groupIds.push(newGroupId);
+      for (const p of s.points) {
+        p.x = round1(p.x + dx);
+        p.y = round1(p.y + dy);
+      }
+      this.strokes.push(s);
+    }
+
+    this.selectedStrokes = new Set(newStrokes);
+    this.spawningLibraryItem = null;
+    this.selectionMode = "move";
+    this.currentPen = this.pens.find((p) => p.isSelector) || this.pens[1];
+
+    this.markDirty();
+    this.onUpdate();
+    this.triggerUIUpdate();
   }
 }
