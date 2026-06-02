@@ -125,6 +125,16 @@ export class State {
 
   public setColor(color: string) {
     this.currentColor = color;
+
+    if (this.selectedStrokes.size > 0) {
+      this.saveHistory();
+      for (const stroke of this.selectedStrokes) {
+        stroke.color = color;
+      }
+      this.markDirty();
+      this.onUpdate();
+    }
+
     this.triggerUIUpdate();
   }
 
