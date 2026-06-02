@@ -28,6 +28,18 @@ export class Palette {
   }
 
   public render() {
+    if (this.container.children.length === this.state.colors.length) {
+      Array.from(this.container.children).forEach((btn, i) => {
+        const color = this.state.colors[i];
+        const el = btn as HTMLDivElement;
+        el.style.backgroundColor = color;
+        if (this.state.currentColor === color)
+          el.classList.add("active-palette");
+        else el.classList.remove("active-palette");
+      });
+      return;
+    }
+
     this.container.innerHTML = "";
 
     this.state.colors.forEach((color, i) => {

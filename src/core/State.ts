@@ -31,6 +31,8 @@ export class State {
   public backgroundColor: string = "#000000";
   public invertColors: boolean = false;
 
+  private uiUpdatePending = false;
+
   public colors: string[] = [
     "#ef4444",
     "#3b82f6",
@@ -54,7 +56,13 @@ export class State {
     this.uiListeners.push(fn);
   }
   public triggerUIUpdate() {
-    this.uiListeners.forEach((fn) => fn());
+    if (!this.uiUpdatePending) {
+      this.uiUpdatePending = true;
+      requestAnimationFrame(() => {
+        this.uiUpdatePending = false;
+        this.uiListeners.forEach((fn) => fn());
+      });
+    }
   }
   public markDirty() {
     this.isDirty = true;

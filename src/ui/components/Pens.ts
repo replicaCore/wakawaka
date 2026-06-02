@@ -35,6 +35,37 @@ export class Pens {
   }
 
   public render() {
+    if (this.container.children.length === this.state.pens.length) {
+      this.state.pens.forEach((pen, i) => {
+        const btn = this.container.children[i] as HTMLButtonElement;
+        btn.className = `w-10 h-10 flex items-center justify-center rounded-xl transition-transform active:scale-95 ${this.state.currentPen === pen ? "bg-blue-100 shadow-inner" : "hover:bg-gray-100"}`;
+      });
+
+      if (this.state.currentPen.isSelector) {
+        this.quickSettings.style.opacity = "0.3";
+        this.quickSettings.style.pointerEvents = "none";
+      } else {
+        this.quickSettings.style.opacity = "1";
+        this.quickSettings.style.pointerEvents = "auto";
+        this.pressureToggle.checked = this.state.pens[0].simulatePressure;
+
+        this.sizeBtns.forEach((btn, i) => {
+          if (i === this.state.activeSizeIndex) {
+            btn.classList.add("bg-blue-200", "shadow-inner", "text-blue-800");
+            btn.classList.remove("hover:bg-gray-200", "text-gray-600");
+          } else {
+            btn.classList.remove(
+              "bg-blue-200",
+              "shadow-inner",
+              "text-blue-800",
+            );
+            btn.classList.add("hover:bg-gray-200", "text-gray-600");
+          }
+        });
+      }
+      return;
+    }
+
     this.container.innerHTML = "";
 
     this.state.pens.forEach((pen, i) => {

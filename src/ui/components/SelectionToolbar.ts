@@ -4,6 +4,7 @@ import { refreshIcons } from "../icons";
 export class SelectionToolbar {
   private container: HTMLDivElement;
   private state: State;
+  private lastStateHash: string = "";
 
   constructor(state: State) {
     this.state = state;
@@ -26,7 +27,6 @@ export class SelectionToolbar {
 
     this.container.classList.remove("hidden");
 
-    // Проверяем условия для показа кнопок Группировки
     const canGroup = this.state.selectedStrokes.size > 1;
     let canUngroup = false;
     for (const stroke of this.state.selectedStrokes) {
@@ -36,18 +36,21 @@ export class SelectionToolbar {
       }
     }
 
-    let groupButtonsHtml = "";
-    if (canGroup || canUngroup) {
-      groupButtonsHtml += `<div class="w-px h-6 bg-gray-300 my-auto mx-1"></div>`;
-      if (canGroup) {
-        groupButtonsHtml += `<button id="sel-group" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="Сгруппировать"><i data-lucide="link" class="w-5 h-5 pointer-events-none"></i></button>`;
-      }
-      if (canUngroup) {
-        groupButtonsHtml += `<button id="sel-ungroup" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="Разгруппировать"><i data-lucide="unlink" class="w-5 h-5 pointer-events-none"></i></button>`;
-      }
-    }
+    const currentStateHash = `${this.state.selectionMode}-${canGroup}-${canUngroup}-${this.state.currentColor}`;
 
-    this.container.innerHTML = `
+    if (this.lastStateHash !== currentStateHash) {
+      let groupButtonsHtml = "";
+      if (canGroup || canUngroup) {
+        groupButtonsHtml += `<div class="w-px h-6 bg-gray-300 my-auto mx-1"></div>`;
+        if (canGroup) {
+          groupButtonsHtml += `<button id="sel-group" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="Сгруппировать"><i data-lucide="link" class="w-5 h-5 pointer-events-none"></i></button>`;
+        }
+        if (canUngroup) {
+          groupButtonsHtml += `<button id="sel-ungroup" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="Разгруппировать"><i data-lucide="unlink" class="w-5 h-5 pointer-events-none"></i></button>`;
+        }
+      }
+
+      this.container.innerHTML = `
       <button id="sel-move" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 ${this.state.selectionMode === "move" ? "bg-blue-100 shadow-inner" : "hover:bg-gray-100"}" title="Перемещение"><i data-lucide="hand" class="w-5 h-5 pointer-events-none"></i></button>
       <button id="sel-scale" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 ${this.state.selectionMode === "scale" ? "bg-blue-100 shadow-inner" : "hover:bg-gray-100"}" title="Масштабирование"><i data-lucide="maximize" class="w-5 h-5 pointer-events-none"></i></button>
       
@@ -68,76 +71,54 @@ export class SelectionToolbar {
       ${groupButtonsHtml}
     `;
 
-    // Высчитываем координаты для меню (сначала рендерим, чтобы получить ширину/высоту элемента)
-    const { camera } = this.state;
-    const screenX = ((bounds.minX + bounds.maxX) / 2) * camera.zoom + camera.x;
-    const screenYBottom = bounds.maxY * camera.zoom + camera.y;
-    const screenYTop = bounds.minY * camera.zoom + camera.y;
+      // Высчитываем координаты для меню (сначала рендерим, чтобы получить ширину/высоту элемента)
+      const { camera } = this.state;
+      const screenX =
+        ((bounds.minX + bounds.maxX) / 2) * camera.zoom + camera.x;
+      const screenYBottom = bounds.maxY * camera.zoom + camera.y;
+      const screenYTop = bounds.minY * camera.zoom + camera.y;
 
-    // Даем немного времени браузеру отрисовать элемент, чтобы получить его реальные размеры
-    requestAnimationFrame(() => {
-      const menuHeight = this.container.offsetHeight || 52; // Примерно 52px высота
-      const menuWidth = this.container.offsetWidth || 300; // Примерно 300px ширина
-      const windowHeight = window.innerHeight;
-      const windowWidth = window.innerWidth;
+      const menuHeight = 52;
+      const menuWidth = 320;
 
       let topPos = screenYBottom + 15;
-
-      // Если внизу нет места, показываем сверху выделения
-      if (topPos + menuHeight + 20 > windowHeight) {
+      if (topPos + menuHeight + 20 > window.innerHeight) {
         topPos = screenYTop - menuHeight - 15;
       }
 
-      // Жестко ограничиваем по Y, чтобы тулбар не уходил за верхний или нижний край экрана
-      topPos = Math.max(10, Math.min(topPos, windowHeight - menuHeight - 10));
-
-      // Жестко ограничиваем по X, чтобы тулбар не уходил за левый или правый край
-      // (с учетом того, что он сдвигается через translateX(-50%))
-      const minLeft = menuWidth / 2 + 10;
-      const maxLeft = windowWidth - menuWidth / 2 - 10;
+      topPos = Math.max(
+        10,
+        Math.min(topPos, window.innerHeight - menuHeight - 10),
+      );
+      const minLeft = menuWidth / 2 + 20;
+      const maxLeft = window.innerWidth - menuWidth / 2 - 20;
       const leftPos = Math.max(minLeft, Math.min(screenX, maxLeft));
 
       this.container.style.top = `${topPos}px`;
       this.container.style.left = `${leftPos}px`;
       this.container.style.transform = "translateX(-50%)";
-    });
 
-    // Навешиваем события на старые кнопки
-    document.getElementById("sel-move")?.addEventListener("click", () => {
-      this.state.selectionMode = "move";
-      this.state.triggerUIUpdate();
-    });
-
-    document.getElementById("sel-scale")?.addEventListener("click", () => {
-      this.state.selectionMode = "scale";
-      this.state.triggerUIUpdate();
-    });
-
-    document.getElementById("sel-color")?.addEventListener("click", () => {
-      this.state.changeSelectionColor();
-    });
-
-    document.getElementById("sel-delete")?.addEventListener("click", () => {
-      this.state.deleteSelection();
-    });
-
-    document.getElementById("sel-group")?.addEventListener("click", () => {
-      this.state.groupSelected();
-    });
-
-    document.getElementById("sel-ungroup")?.addEventListener("click", () => {
-      this.state.ungroupSelected();
-    });
-
-    // Навешиваем события-заглушки на НОВЫЕ кнопки слоев
-    document.getElementById("sel-layer-up")?.addEventListener("click", () => {
-      console.log("layer up"); // Здесь будет метод state
-    });
-
-    document.getElementById("sel-layer-down")?.addEventListener("click", () => {
-      console.log("layer down"); // Здесь будет метод state
-    });
-
-    refreshIcons();
+      document.getElementById("sel-move")?.addEventListener("click", () => {
+        this.state.selectionMode = "move";
+        this.state.triggerUIUpdate();
+      });
+      document.getElementById("sel-scale")?.addEventListener("click", () => {
+        this.state.selectionMode = "scale";
+        this.state.triggerUIUpdate();
+      });
+      document
+        .getElementById("sel-color")
+        ?.addEventListener("click", () => this.state.changeSelectionColor());
+      document
+        .getElementById("sel-delete")
+        ?.addEventListener("click", () => this.state.deleteSelection());
+      document
+        .getElementById("sel-group")
+        ?.addEventListener("click", () => this.state.groupSelected());
+      document
+        .getElementById("sel-ungroup")
+        ?.addEventListener("click", () => this.state.ungroupSelected());
+      refreshIcons();
+    }
   }
 }
