@@ -1,11 +1,10 @@
-import type { State } from "../../core/State.ts";
+import type { State } from "../../core/State";
 import { refreshIcons } from "../icons";
 
 export class Pens {
   private container: HTMLDivElement;
   private quickSettings: HTMLDivElement;
   private sizeBtns: HTMLButtonElement[] = [];
-  private pressureToggle: HTMLInputElement;
   private state: State;
 
   constructor(state: State) {
@@ -22,13 +21,6 @@ export class Pens {
       btn.addEventListener("click", () => this.state.setPenSizeIndex(i));
       this.sizeBtns.push(btn);
     }
-
-    this.pressureToggle = document.getElementById(
-      "pressure-toggle",
-    ) as HTMLInputElement;
-    this.pressureToggle.addEventListener("change", (e) => {
-      this.state.togglePressure((e.target as HTMLInputElement).checked);
-    });
 
     this.state.subscribeUI(() => this.render());
     this.render();
@@ -47,7 +39,6 @@ export class Pens {
       } else {
         this.quickSettings.style.opacity = "1";
         this.quickSettings.style.pointerEvents = "auto";
-        this.pressureToggle.checked = this.state.pens[0].simulatePressure;
 
         this.sizeBtns.forEach((btn, i) => {
           if (i === this.state.activeSizeIndex) {
@@ -82,9 +73,6 @@ export class Pens {
     } else {
       this.quickSettings.style.opacity = "1";
       this.quickSettings.style.pointerEvents = "auto";
-
-      // ТЕПЕРЬ 0
-      this.pressureToggle.checked = this.state.pens[0].simulatePressure;
 
       this.sizeBtns.forEach((btn, i) => {
         if (i === this.state.activeSizeIndex) {

@@ -138,13 +138,6 @@ export class State {
     }
   }
 
-  public togglePressure(val: boolean) {
-    this.pens[0].simulatePressure = val;
-    this.triggerUIUpdate();
-    this.markDirty();
-    this.onUpdate();
-  }
-
   // --- ВЫДЕЛЕНИЕ (LASSO, ТРАНСФОРМАЦИИ) ---
   public getSelectionBounds() {
     return getSelectionBounds(this.selectedStrokes);

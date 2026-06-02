@@ -1,6 +1,6 @@
 export type Coordinate = { x: number; y: number };
 
-export type Point = Coordinate & { pressure: number };
+export type Point = Coordinate;
 
 export type Camera = { x: number; y: number; zoom: number };
 
@@ -18,7 +18,6 @@ export type PenOptions = {
   thinning: number;
   smoothing: number;
   streamline: number;
-  simulatePressure: boolean;
   isMarker?: boolean;
   isSelector?: boolean;
 };

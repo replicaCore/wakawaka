@@ -149,7 +149,7 @@ export async function importFile(file: File): Promise<Project | null> {
             // Выбираем точки по контуру пути
             for (let i = 0; i <= len; i += Math.max(1, len / 50)) {
               const pt = clonedEl.getPointAtLength(i);
-              points.push({ x: pt.x, y: pt.y, pressure: 0.5 });
+              points.push({ x: pt.x, y: pt.y });
             }
             strokes.push({
               points,

@@ -207,7 +207,10 @@ export class Render {
     if (points.length === 0) return;
     if (penOption.isMarker) this.ctx.globalAlpha = 0.4;
 
-    const outlinePoints = getStroke(points, penOption);
+    const outlinePoints = getStroke(points, {
+      ...penOption,
+      simulatePressure: false,
+    });
     const path = new Path2D(getSvgPathFromStroke(outlinePoints));
     this.ctx.fill(path);
 

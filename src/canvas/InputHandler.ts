@@ -77,9 +77,7 @@ export class InputHandler {
       } else {
         this.state.selectedStrokes.clear();
         this.isDrawingLasso = true;
-        this.state.lassoPath = [
-          { x: worldPt.x, y: worldPt.y, pressure: e.pressure || 0.5 },
-        ];
+        this.state.lassoPath = [{ x: worldPt.x, y: worldPt.y }];
         this.state.onUpdate();
         this.state.triggerUIUpdate();
       }
@@ -90,7 +88,6 @@ export class InputHandler {
     this.state.addPoint({
       x: round1(worldPt.x),
       y: round1(worldPt.y),
-      pressure: round1(e.pressure || 0.5),
     });
   };
 
@@ -112,7 +109,6 @@ export class InputHandler {
       this.state.lassoPath.push({
         x: round1(worldPt.x),
         y: round1(worldPt.y),
-        pressure: round1(e.pressure || 0.5),
       });
       this.state.updateLassoSelection();
       this.state.onUpdate();
@@ -155,7 +151,6 @@ export class InputHandler {
     this.state.addPoint({
       x: round1(worldPt.x),
       y: round1(worldPt.y),
-      pressure: round1(e.pressure || 0.5),
     });
   };
 
