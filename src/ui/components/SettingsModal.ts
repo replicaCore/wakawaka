@@ -62,8 +62,7 @@ export class Settings {
     if (this.activeTab === "canvas") renderCanvasTab(this.content, this.state);
     if (this.activeTab === "colors")
       renderColorsTab(this.content, this.state, this.renderContent);
-    if (this.activeTab === "pens")
-      renderPensTab(this.content, this.state, this.renderContent);
+    if (this.activeTab === "pens") renderPensTab(this.content, this.state);
     if (this.activeTab === "export") renderExportTab(this.content, this.state);
 
     refreshIcons();

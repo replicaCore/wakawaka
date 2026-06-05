@@ -3,7 +3,7 @@ import type { State } from "../../core/State";
 export function renderPensTab(
   content: HTMLDivElement,
   state: State,
-  reRender: () => void,
+  // reRender: () => void,
 ) {
   const pen = state.pens[0]; // ТЕПЕРЬ 0
 
