@@ -18,8 +18,14 @@ export class Render {
   }
 
   private resize() {
-    this.canvas.width = window.innerWidth;
-    this.canvas.height = window.innerHeight;
+    const dpr = window.devicePixelRatio || 1;
+
+    this.canvas.width = window.innerWidth * dpr;
+    this.canvas.height = window.innerHeight * dpr;
+
+    this.canvas.style.width = `${window.innerWidth}px`;
+    this.canvas.style.height = `${window.innerHeight}px`;
+
     this.render();
   }
 
@@ -32,18 +38,19 @@ export class Render {
 
   private draw = () => {
     this.renderPending = false;
+    const dpr = window.devicePixelRatio || 1;
 
     this.ctx.resetTransform();
     this.ctx.fillStyle = this.state.backgroundColor;
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
     this.ctx.setTransform(
-      this.state.camera.zoom,
+      this.state.camera.zoom * dpr,
       0,
       0,
-      this.state.camera.zoom,
-      this.state.camera.x,
-      this.state.camera.y,
+      this.state.camera.zoom * dpr,
+      this.state.camera.x * dpr,
+      this.state.camera.y * dpr,
     );
 
     this.drawAllStrokes();
@@ -55,8 +62,8 @@ export class Render {
     const { camera } = this.state;
     const vpMinX = -camera.x / camera.zoom;
     const vpMinY = -camera.y / camera.zoom;
-    const vpMaxX = (this.canvas.width - camera.x) / camera.zoom;
-    const vpMaxY = (this.canvas.height - camera.y) / camera.zoom;
+    const vpMaxX = (window.innerWidth - camera.x) / camera.zoom;
+    const vpMaxY = (window.innerHeight - camera.y) / camera.zoom;
 
     for (const stroke of this.state.strokes) {
       if (!stroke.bounds) {
