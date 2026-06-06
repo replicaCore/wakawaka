@@ -11,6 +11,11 @@ export function renderCanvasTab(content: HTMLDivElement, state: State) {
         <span class="font-medium">Инвертировать цвета (Dark Mode)</span>
         <input type="checkbox" id="invert-checkbox" ${state.invertColors ? "checked" : ""} class="w-5 h-5">
       </label>
+      <div class="w-full h-px bg-gray-200 my-2"></div>
+      <label class="flex justify-between items-center gap-4">
+        <span class="font-medium text-sm leading-tight text-gray-700">Перемещать выделение из любой области экрана (Стилус)</span>
+        <input type="checkbox" id="drag-anywhere-checkbox" ${state.selectionDragAnywhere ? "checked" : ""} class="w-5 h-5 flex-shrink-0">
+      </label>
     </div>
   `;
 
@@ -23,6 +28,13 @@ export function renderCanvasTab(content: HTMLDivElement, state: State) {
     .getElementById("invert-checkbox")
     ?.addEventListener("change", (e) => {
       state.invertColors = (e.target as HTMLInputElement).checked;
+      state.markDirty();
+      state.onUpdate();
+    });
+  document
+    .getElementById("drag-anywhere-checkbox")
+    ?.addEventListener("change", (e) => {
+      state.selectionDragAnywhere = (e.target as HTMLInputElement).checked;
       state.markDirty();
       state.onUpdate();
     });

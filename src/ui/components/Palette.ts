@@ -52,7 +52,7 @@ export class Palette {
         this.pressTimer = setTimeout(() => {
           this.isLongPress = true;
           this.activeSlotIndex = i;
-          this.hiddenPicker.value = color;
+          this.hiddenPicker.value = this.state.colors[i];
           this.hiddenPicker.click();
         }, 500);
       });
@@ -64,7 +64,7 @@ export class Palette {
       btn.addEventListener("pointerup", () => {
         clearPress();
         if (!this.isLongPress) {
-          this.state.setColor(color);
+          this.state.setColor(this.state.colors[i]);
         }
       });
 

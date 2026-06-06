@@ -32,6 +32,7 @@ export class State {
   public spawningLibraryItem: LibraryItem | null = null;
   public onLibrarySave: (item: LibraryItem) => void = () => {};
   public onLibraryDelete: (id: string) => void = () => {};
+  public selectionDragAnywhere: boolean = true;
 
   public camera: Camera = { x: 0, y: 0, zoom: 1 };
   public backgroundColor: string = "#000000";
@@ -261,6 +262,18 @@ export class State {
 
   public groupSelected() {
     if (this.selectedStrokes.size < 2) return;
+
+    const topLevelEntities = new Set<string>();
+    let ungroupedCount = 0;
+    for (const stroke of this.selectedStrokes) {
+      if (stroke.groupIds && stroke.groupIds.length > 0) {
+        topLevelEntities.add(stroke.groupIds[stroke.groupIds.length - 1]);
+      } else {
+        ungroupedCount++;
+      }
+    }
+    if (topLevelEntities.size + ungroupedCount < 2) return;
+
     this.saveHistory();
     const newGroupId = Math.random().toString(36).substring(2, 10);
     for (const stroke of this.selectedStrokes) {
@@ -365,6 +378,7 @@ export class State {
       this.strokes = project.strokes || [];
       this.backgroundColor = project.backgroundColor || "#000000";
       this.camera = project.camera || { x: 0, y: 0, zoom: 1 };
+      this.selectionDragAnywhere = project.selectionDragAnywhere ?? true;
 
       this.penSizes = project.penSizes || [4, 12, 24];
       this.activeSizeIndex = project.activeSizeIndex ?? 1;
@@ -382,6 +396,7 @@ export class State {
       this.strokes = [];
       this.backgroundColor = "#000000";
       this.camera = { x: 0, y: 0, zoom: 1 };
+      this.selectionDragAnywhere = true;
 
       this.pens[0].icon = "pen-tool";
       this.penSizes = [4, 12, 24];
@@ -401,18 +416,19 @@ export class State {
   public getProjectData(includeHistory = false): Project {
     const { history, redoHistory } = this.historyManager.getRawData();
     return {
-      id: this.currentProjectId!,
-      name: this.currentProjectName,
-      thumbnail: "",
-      updatedAt: Date.now(),
-      strokes: this.strokes,
+      activeSizeIndex: this.activeSizeIndex,
       backgroundColor: this.backgroundColor,
       camera: this.camera,
-      penSizes: this.penSizes,
-      activeSizeIndex: this.activeSizeIndex,
-      penOptions: this.pens[0],
       history: includeHistory ? history : [],
+      id: this.currentProjectId!,
+      name: this.currentProjectName,
+      penOptions: this.pens[0],
+      penSizes: this.penSizes,
       redoHistory: includeHistory ? redoHistory : [],
+      selectionDragAnywhere: this.selectionDragAnywhere,
+      strokes: this.strokes,
+      thumbnail: "",
+      updatedAt: Date.now(),
     };
   }
 

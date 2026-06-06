@@ -104,7 +104,10 @@ export class InputHandler {
     }
 
     if (this.state.currentPen.isSelector) {
-      if (this.state.isPointInSelectionBox(worldPt)) {
+      const isInsideBox = this.state.isPointInSelectionBox(worldPt);
+      const hasSelection = this.state.selectedStrokes.size > 0;
+
+      if (hasSelection && (isInsideBox || this.state.selectionDragAnywhere)) {
         this.isDraggingSelection = true;
         this.hasDragged = false;
         this.lastDragWorldPt = worldPt;
@@ -288,7 +291,19 @@ export class InputHandler {
         this.isDrawingLasso = false;
         this.state.finishLasso();
       }
-      this.isDraggingSelection = false;
+
+      if (this.isDraggingSelection) {
+        this.isDraggingSelection = false;
+        if (
+          !this.hasDragged &&
+          !this.state.isPointInSelectionBox(this.lastDragWorldPt)
+        ) {
+          this.state.selectedStrokes.clear();
+          this.state.triggerUIUpdate();
+          this.state.onUpdate();
+        }
+      }
+
       this.canvas.style.cursor = this.isSpacePressed ? "grab" : "";
 
       if (this.isDrawing) {

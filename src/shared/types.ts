@@ -44,4 +44,6 @@ export type Project = {
 
   history?: Stroke[][];
   redoHistory?: Stroke[][];
+
+  selectionDragAnywhere?: boolean;
 };

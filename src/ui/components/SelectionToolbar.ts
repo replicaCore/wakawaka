@@ -27,14 +27,20 @@ export class SelectionToolbar {
 
     this.container.classList.remove("hidden");
 
-    const canGroup = this.state.selectedStrokes.size > 1;
+    const topLevelEntities = new Set<string>();
+    let ungroupedCount = 0;
     let canUngroup = false;
+
     for (const stroke of this.state.selectedStrokes) {
       if (stroke.groupIds && stroke.groupIds.length > 0) {
         canUngroup = true;
-        break;
+        topLevelEntities.add(stroke.groupIds[stroke.groupIds.length - 1]);
+      } else {
+        ungroupedCount++;
       }
     }
+
+    const canGroup = topLevelEntities.size + ungroupedCount > 1;
 
     const currentStateHash = `${this.state.selectionMode}-${canGroup}-${canUngroup}-${this.state.currentColor}`;
 

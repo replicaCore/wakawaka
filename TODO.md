@@ -1,1 +1,2 @@
 - [?] File System Access API
+- [ ] подлагивает сучара (нужно скопипастить с exalidraw)
