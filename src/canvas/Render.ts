@@ -9,6 +9,10 @@ export class Render {
   private state: State;
   private renderPending = false;
 
+  private lastFpsTime = performance.now();
+  private framesThisSecond = 0;
+  private fpsElement = document.getElementById("fps-counter");
+
   constructor(canvas: HTMLCanvasElement, state: State) {
     this.canvas = canvas;
     this.state = state;
@@ -38,6 +42,16 @@ export class Render {
 
   private draw = () => {
     this.renderPending = false;
+    const now = performance.now();
+    this.framesThisSecond++;
+    if (now - this.lastFpsTime >= 1000) {
+      if (this.fpsElement) {
+        this.fpsElement.innerText = `FPS: ${this.framesThisSecond}`;
+      }
+      this.framesThisSecond = 0;
+      this.lastFpsTime = now;
+    }
+
     const dpr = window.devicePixelRatio || 1;
 
     this.ctx.resetTransform();

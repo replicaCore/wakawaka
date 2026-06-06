@@ -56,9 +56,15 @@ export class SelectionToolbar {
       
       <div class="w-px h-6 bg-gray-300 my-auto mx-1"></div>
       
-      <!-- КНОПКИ ДЛЯ СЛОЕВ -->
       <button id="sel-layer-up" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="На передний план"><i data-lucide="arrow-up-to-line" class="w-5 h-5 pointer-events-none"></i></button>
       <button id="sel-layer-down" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="На задний план"><i data-lucide="arrow-down-to-line" class="w-5 h-5 pointer-events-none"></i></button>
+
+      <div class="w-px h-6 bg-gray-300 my-auto mx-1"></div>
+
+      <!-- НОВЫЕ ИНСТРУМЕНТЫ -->
+      <button id="sel-clone" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="Дублировать"><i data-lucide="copy" class="w-5 h-5 pointer-events-none"></i></button>
+      <button id="sel-flip-h" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="Отразить по горизонтали"><i data-lucide="flip-horizontal" class="w-5 h-5 pointer-events-none"></i></button>
+      <button id="sel-flip-v" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="Отразить по вертикали"><i data-lucide="flip-vertical" class="w-5 h-5 pointer-events-none"></i></button>
 
       <div class="w-px h-6 bg-gray-300 my-auto mx-1"></div>
 
@@ -74,7 +80,7 @@ export class SelectionToolbar {
       const screenYTop = bounds.minY * camera.zoom + camera.y;
 
       const menuHeight = 52;
-      const menuWidth = 320;
+      const menuWidth = 460;
 
       let topPos = screenYBottom + 15;
       if (topPos + menuHeight + 20 > window.innerHeight) {
@@ -113,6 +119,18 @@ export class SelectionToolbar {
       document
         .getElementById("sel-ungroup")
         ?.addEventListener("click", () => this.state.ungroupSelected());
+
+      document
+        .getElementById("sel-clone")
+        ?.addEventListener("click", () => this.state.duplicateSelected());
+      document
+        .getElementById("sel-flip-h")
+        ?.addEventListener("click", () =>
+          this.state.flipSelected("horizontal"),
+        );
+      document
+        .getElementById("sel-flip-v")
+        ?.addEventListener("click", () => this.state.flipSelected("vertical"));
       refreshIcons();
     }
   }

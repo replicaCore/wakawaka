@@ -292,6 +292,71 @@ export class State {
     this.triggerUIUpdate();
   }
 
+  public duplicateSelected() {
+    if (this.selectedStrokes.size === 0) return;
+    this.saveHistory();
+
+    const offset = 20 / this.camera.zoom; // Смещаем визуально на 20px для наглядности
+    const newSelected = new Set<Stroke>();
+    const groupMap = new Map<string, string>(); // Сохраняем иерархию групп, но с новыми ID
+
+    for (const stroke of this.selectedStrokes) {
+      const newStroke: Stroke = JSON.parse(JSON.stringify(stroke));
+      newStroke.bounds = undefined; // Заставляем пересчитать границы
+
+      if (newStroke.groupIds) {
+        newStroke.groupIds = newStroke.groupIds.map((gid) => {
+          if (!groupMap.has(gid)) {
+            groupMap.set(gid, Math.random().toString(36).substring(2, 10));
+          }
+          return groupMap.get(gid)!;
+        });
+      }
+
+      for (const p of newStroke.points) {
+        p.x = round1(p.x + offset);
+        p.y = round1(p.y + offset);
+      }
+
+      this.strokes.push(newStroke);
+      newSelected.add(newStroke);
+    }
+
+    this.selectedStrokes = newSelected;
+    this.selectionMode = "move"; // Автоматически переключаем в режим перемещения копий
+    this.markDirty();
+    this.onUpdate();
+    this.triggerUIUpdate();
+  }
+
+  // НОВОЕ: Отзеркаливание выделения
+  public flipSelected(direction: "horizontal" | "vertical") {
+    if (this.selectedStrokes.size === 0) return;
+    const bounds = this.getSelectionBounds();
+    if (!bounds) return;
+
+    this.saveHistory();
+
+    // Находим точный центр выделенной области
+    const cx = (bounds.minX + bounds.maxX) / 2;
+    const cy = (bounds.minY + bounds.maxY) / 2;
+
+    for (const stroke of this.selectedStrokes) {
+      stroke.bounds = undefined;
+      for (const p of stroke.points) {
+        if (direction === "horizontal") {
+          p.x = round1(2 * cx - p.x); // Отражаем по X относительно центра
+        } else {
+          p.y = round1(2 * cy - p.y); // Отражаем по Y относительно центра
+        }
+      }
+    }
+
+    this.markDirty();
+    this.onUpdate();
+    this.triggerUIUpdate();
+  }
+
   // --- УПРАВЛЕНИЕ ПРОЕКТОМ ---
   public loadProject(project: Project | null) {
     if (project) {

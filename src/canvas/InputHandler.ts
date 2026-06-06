@@ -17,6 +17,10 @@ export class InputHandler {
   private canvas: HTMLCanvasElement;
   private state: State;
 
+  private pointers = new Map<number, PointerEvent>();
+  private lastPinchDist: number | null = null;
+  private lastPinchCenter: Coordinate | null = null;
+
   constructor(canvas: HTMLCanvasElement, state: State) {
     this.canvas = canvas;
     this.state = state;
@@ -41,6 +45,7 @@ export class InputHandler {
       this.cursorCircle.classList.add("hidden"),
     );
     window.addEventListener("pointerup", this.handlePointerUp);
+    window.addEventListener("pointercancel", this.handlePointerUp);
     this.canvas.addEventListener("wheel", this.handleWheel, { passive: false });
 
     document.addEventListener("keydown", (e) => {
@@ -59,7 +64,30 @@ export class InputHandler {
   }
 
   private handlePointerDown = (e: PointerEvent) => {
-    document.body.classList.add("canvas-active");
+    this.pointers.set(e.pointerId, e);
+
+    if (this.pointers.size === 2) {
+      const pts = Array.from(this.pointers.values());
+      this.lastPinchDist = Math.hypot(
+        pts[0].clientX - pts[1].clientX,
+        pts[0].clientY - pts[1].clientY,
+      );
+      this.lastPinchCenter = {
+        x: (pts[0].clientX + pts[1].clientX) / 2,
+        y: (pts[0].clientY + pts[1].clientY) / 2,
+      };
+
+      this.isPanning = true;
+      this.isDrawing = false;
+      this.isDrawingLasso = false;
+      this.isDraggingSelection = false;
+      this.state.currentStroke = [];
+      this.state.lassoPath = [];
+      this.state.onUpdate();
+      return;
+    }
+    if (this.pointers.size > 2) return;
+
     if (e.pointerType === "touch" || e.button === 1 || this.isSpacePressed) {
       this.isPanning = true;
       this.lastPanPoint = { x: e.clientX, y: e.clientY };
@@ -99,6 +127,70 @@ export class InputHandler {
 
   private handlePointerMove = (e: PointerEvent) => {
     this.updateCursorVisual(e);
+
+    if (this.pointers.has(e.pointerId)) {
+      this.pointers.set(e.pointerId, e);
+    }
+
+    const isInteracting =
+      this.isDrawing ||
+      this.isPanning ||
+      this.isDrawingLasso ||
+      this.isDraggingSelection;
+
+    if (isInteracting) {
+      const EDGE_ZONE = window.innerWidth / 15;
+
+      const isNearEdge =
+        e.clientX < EDGE_ZONE ||
+        e.clientY < EDGE_ZONE ||
+        e.clientX > window.innerWidth - EDGE_ZONE ||
+        e.clientY > window.innerHeight - EDGE_ZONE;
+
+      if (isNearEdge) {
+        document.body.classList.add("canvas-active");
+      } else {
+        document.body.classList.remove("canvas-active");
+      }
+    }
+
+    if (this.pointers.size === 2) {
+      const pts = Array.from(this.pointers.values());
+      const dist = Math.hypot(
+        pts[0].clientX - pts[1].clientX,
+        pts[0].clientY - pts[1].clientY,
+      );
+      const center = {
+        x: (pts[0].clientX + pts[1].clientX) / 2,
+        y: (pts[0].clientY + pts[1].clientY) / 2,
+      };
+
+      if (this.lastPinchCenter && this.lastPinchDist) {
+        this.state.camera.x += center.x - this.lastPinchCenter.x;
+        this.state.camera.y += center.y - this.lastPinchCenter.y;
+
+        const zoomFactor = dist / this.lastPinchDist;
+        const newZoom = this.state.camera.zoom * zoomFactor;
+
+        if (newZoom >= 0.01 && newZoom <= 100) {
+          this.state.camera.x =
+            center.x -
+            (center.x - this.state.camera.x) *
+              (newZoom / this.state.camera.zoom);
+          this.state.camera.y =
+            center.y -
+            (center.y - this.state.camera.y) *
+              (newZoom / this.state.camera.zoom);
+          this.state.camera.zoom = newZoom;
+        }
+
+        this.lastPinchDist = dist;
+        this.lastPinchCenter = center;
+        this.state.onUpdate();
+        this.state.triggerUIUpdate();
+      }
+      return;
+    }
 
     if (this.isPanning) {
       this.state.camera.x += e.clientX - this.lastPanPoint.x;
@@ -175,21 +267,35 @@ export class InputHandler {
     });
   };
 
-  private handlePointerUp = () => {
-    document.body.classList.remove("canvas-active");
-    this.isPanning = false;
+  private handlePointerUp = (e: PointerEvent) => {
+    this.pointers.delete(e.pointerId);
 
-    if (this.isDrawingLasso) {
-      this.isDrawingLasso = false;
-      this.state.finishLasso();
+    if (this.pointers.size < 2) {
+      this.lastPinchDist = null;
+      this.lastPinchCenter = null;
     }
-    this.isDraggingSelection = false;
-    this.canvas.style.cursor = this.isSpacePressed ? "grab" : "";
 
-    if (this.isDrawing) {
-      this.isDrawing = false;
-      if (!this.state.currentPen.isSelector) {
-        this.state.endStroke();
+    if (this.pointers.size === 1) {
+      const remaining = Array.from(this.pointers.values())[0];
+      this.lastPanPoint = { x: remaining.clientX, y: remaining.clientY };
+    }
+
+    if (this.pointers.size === 0) {
+      document.body.classList.remove("canvas-active");
+      this.isPanning = false;
+
+      if (this.isDrawingLasso) {
+        this.isDrawingLasso = false;
+        this.state.finishLasso();
+      }
+      this.isDraggingSelection = false;
+      this.canvas.style.cursor = this.isSpacePressed ? "grab" : "";
+
+      if (this.isDrawing) {
+        this.isDrawing = false;
+        if (!this.state.currentPen.isSelector) {
+          this.state.endStroke();
+        }
       }
     }
   };
