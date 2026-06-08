@@ -1,7 +1,7 @@
 import { getStroke } from "perfect-freehand";
 import { getSvgPathFromStroke } from "../shared/utils";
 import type { State } from "../core/State";
-import type { PenOptions, Point, Stroke } from "../shared/types";
+import type { Stroke } from "../shared/types";
 
 export class Render {
   private ctx: CanvasRenderingContext2D;
@@ -12,6 +12,8 @@ export class Render {
   private lastFpsTime = performance.now();
   private framesThisSecond = 0;
   private fpsElement = document.getElementById("fps-counter");
+
+  private pathCache = new WeakMap<Stroke, Path2D>();
 
   constructor(canvas: HTMLCanvasElement, state: State) {
     this.canvas = canvas;
@@ -74,17 +76,25 @@ export class Render {
 
   private drawAllStrokes() {
     const { camera } = this.state;
+    // Границы видимости камеры (Frustum)
     const vpMinX = -camera.x / camera.zoom;
     const vpMinY = -camera.y / camera.zoom;
     const vpMaxX = (window.innerWidth - camera.x) / camera.zoom;
     const vpMaxY = (window.innerHeight - camera.y) / camera.zoom;
 
     for (const stroke of this.state.strokes) {
+      let needsPathRecalculation = false;
+
+      // ОПТИМИЗАЦИЯ 1: Жесткий Culling и расчет границ
       if (!stroke.bounds) {
         stroke.bounds = this.computeStrokeBounds(stroke);
+        // Если границы отсутствуют (например линия только что нарисована,
+        // перемещена или отмасштабирована), значит нужно пересчитать и Path2D
+        needsPathRecalculation = true;
       }
 
       const b = stroke.bounds;
+      // Если объект за пределами экрана — вообще не передаем его в Canvas API
       if (
         b &&
         (b.maxX < vpMinX ||
@@ -95,13 +105,41 @@ export class Render {
         continue;
       }
 
+      // ОПТИМИЗАЦИЯ 2: Векторный кэш
+      let path = this.pathCache.get(stroke);
+
+      if (!path || needsPathRecalculation) {
+        // Выполняем тяжелую математику ТОЛЬКО ОДИН РАЗ для каждой линии
+        const outlinePoints = getStroke(stroke.points, {
+          ...stroke.pen,
+          simulatePressure: false,
+        });
+        path = new Path2D(getSvgPathFromStroke(outlinePoints));
+        this.pathCache.set(stroke, path);
+      }
+
+      // Сверхбыстрая отрисовка закэшированного пути
       this.ctx.fillStyle = stroke.color;
-      this.drawPerfectStroke(stroke.points, stroke.pen);
+      if (stroke.pen.isMarker) this.ctx.globalAlpha = 0.4;
+      this.ctx.fill(path);
+      this.ctx.globalAlpha = 1.0;
     }
 
+    // ОПТИМИЗАЦИЯ 3: Текущая (активная) линия
+    // Она пересчитывается каждый кадр, так как она "живая".
+    // Как только отпустим стилус, она попадет в массив strokes и закэшируется.
     if (this.state.currentStroke.length > 0) {
       this.ctx.fillStyle = this.state.currentColor;
-      this.drawPerfectStroke(this.state.currentStroke, this.state.currentPen);
+      if (this.state.currentPen.isMarker) this.ctx.globalAlpha = 0.4;
+
+      const outlinePoints = getStroke(this.state.currentStroke, {
+        ...this.state.currentPen,
+        simulatePressure: false,
+      });
+      const path = new Path2D(getSvgPathFromStroke(outlinePoints));
+      this.ctx.fill(path);
+
+      this.ctx.globalAlpha = 1.0;
     }
   }
 
@@ -162,7 +200,6 @@ export class Render {
       5 / this.state.camera.zoom,
     ]);
 
-    // Разделяем выделенные элементы на одиночки и группы
     const grouped = new Map<string, Stroke[]>();
     const individual = new Set<Stroke>();
 
@@ -178,7 +215,6 @@ export class Render {
       }
     }
 
-    // Функция для отрисовки рамки по координатам
     const drawBox = (
       bounds: { minX: number; minY: number; maxX: number; maxY: number } | null,
     ) => {
@@ -188,12 +224,10 @@ export class Render {
       this.ctx.strokeRect(bounds.minX, bounds.minY, width, height);
     };
 
-    // Рисуем рамки для каждого одиночного вектора
     for (const stroke of individual) {
       drawBox(this.getBoundsForStrokes([stroke]));
     }
 
-    // Рисуем общую рамку для каждой группы
     for (const strokes of grouped.values()) {
       drawBox(this.getBoundsForStrokes(strokes));
     }
@@ -222,20 +256,5 @@ export class Render {
     this.ctx.fillStyle = "rgba(59, 130, 246, 0.1)";
     this.ctx.fill();
     this.ctx.setLineDash([]);
-  }
-
-  private drawPerfectStroke(points: Point[], penOption: PenOptions) {
-    if (points.length === 0) return;
-    if (penOption.isMarker) this.ctx.globalAlpha = 0.4;
-
-    const outlinePoints = getStroke(points, {
-      ...penOption,
-      simulatePressure: false,
-    });
-    const path = new Path2D(getSvgPathFromStroke(outlinePoints));
-    this.ctx.fill(path);
-
-    this.ctx.globalCompositeOperation = "source-over";
-    this.ctx.globalAlpha = 1.0;
   }
 }
