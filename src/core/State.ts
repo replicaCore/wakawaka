@@ -16,7 +16,7 @@ import {
   isPointInBounds,
   isEraserIntersectingStroke,
 } from "./SelectionMath";
-import { round1 } from "../shared/utils";
+import { isColorDark, round1 } from "../shared/utils";
 
 export class State {
   public currentProjectId: string | null = null;
@@ -178,6 +178,12 @@ export class State {
 
   public setColor(color: string) {
     this.currentColor = color;
+
+    if (isColorDark(this.backgroundColor)) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
 
     if (this.selectedStrokes.size > 0) {
       this.saveHistory();
