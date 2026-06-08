@@ -20,6 +20,7 @@ export class InputHandler {
   private pointers = new Map<number, PointerEvent>();
   private lastPinchDist: number | null = null;
   private lastPinchCenter: Coordinate | null = null;
+  private activePenId: number | null = null;
 
   constructor(canvas: HTMLCanvasElement, state: State) {
     this.canvas = canvas;
@@ -64,6 +65,15 @@ export class InputHandler {
   }
 
   private handlePointerDown = (e: PointerEvent) => {
+    if (e.pointerType === "pen") {
+      this.activePenId = e.pointerId;
+      for (const [id, pt] of this.pointers.entries()) {
+        if (pt.pointerType === "touch") this.pointers.delete(id);
+      }
+    }
+
+    if (this.activePenId !== null && e.pointerType === "touch") return;
+
     this.pointers.set(e.pointerId, e);
 
     if (this.pointers.size === 2) {
@@ -88,12 +98,14 @@ export class InputHandler {
     }
     if (this.pointers.size > 2) return;
 
-    if (e.pointerType === "touch" || e.button === 1 || this.isSpacePressed) {
+    if (e.button === 1 || this.isSpacePressed) {
       this.isPanning = true;
       this.lastPanPoint = { x: e.clientX, y: e.clientY };
       if (this.isSpacePressed) this.canvas.style.cursor = "grabbing";
       return;
     }
+
+    if (e.pointerType === "touch") return;
 
     const worldPt = this.getScreenToWorld(e.clientX, e.clientY);
 
@@ -130,6 +142,8 @@ export class InputHandler {
 
   private handlePointerMove = (e: PointerEvent) => {
     this.updateCursorVisual(e);
+
+    if (this.activePenId !== null && e.pointerType === "touch") return;
 
     if (this.pointers.has(e.pointerId)) {
       this.pointers.set(e.pointerId, e);
@@ -196,6 +210,7 @@ export class InputHandler {
     }
 
     if (this.isPanning) {
+      if (this.pointers.size === 1 && e.pointerType === "touch") return;
       this.state.camera.x += e.clientX - this.lastPanPoint.x;
       this.state.camera.y += e.clientY - this.lastPanPoint.y;
       this.lastPanPoint = { x: e.clientX, y: e.clientY };
@@ -204,6 +219,7 @@ export class InputHandler {
       return;
     }
 
+    if (e.pointerType === "touch") return;
     const worldPt = this.getScreenToWorld(e.clientX, e.clientY);
 
     const threshold = 2 / this.state.camera.zoom;
@@ -271,6 +287,10 @@ export class InputHandler {
   };
 
   private handlePointerUp = (e: PointerEvent) => {
+    if (e.pointerId === this.activePenId) {
+      this.activePenId = null;
+    }
+
     this.pointers.delete(e.pointerId);
 
     if (this.pointers.size < 2) {
@@ -280,7 +300,12 @@ export class InputHandler {
 
     if (this.pointers.size === 1) {
       const remaining = Array.from(this.pointers.values())[0];
-      this.lastPanPoint = { x: remaining.clientX, y: remaining.clientY };
+
+      if (this.isPanning && remaining.pointerType !== "touch") {
+        this.lastPanPoint = { x: remaining.clientX, y: remaining.clientY };
+      } else {
+        this.isPanning = false;
+      }
     }
 
     if (this.pointers.size === 0) {
