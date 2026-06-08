@@ -16,4 +16,12 @@ export const PEN_PRESETS: PenOptions[] = [
     streamline: 0,
     isSelector: true,
   },
+  {
+    icon: "eraser",
+    size: 20,
+    thinning: 0,
+    smoothing: 0.5,
+    streamline: 0.5,
+    isEraser: true,
+  },
 ];

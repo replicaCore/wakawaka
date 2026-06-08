@@ -120,7 +120,14 @@ export class Render {
 
       // Сверхбыстрая отрисовка закэшированного пути
       this.ctx.fillStyle = stroke.color;
-      if (stroke.pen.isMarker) this.ctx.globalAlpha = 0.4;
+      if (this.state.erasingStrokes.has(stroke)) {
+        this.ctx.globalAlpha = 0.3; // Как в Excalidraw!
+      } else if (stroke.pen.isMarker) {
+        this.ctx.globalAlpha = 0.4;
+      } else {
+        this.ctx.globalAlpha = 1.0;
+      }
+
       this.ctx.fill(path);
       this.ctx.globalAlpha = 1.0;
     }

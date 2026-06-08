@@ -12,6 +12,7 @@ export class InputHandler {
 
   private lastDragWorldPt: Coordinate = { x: 0, y: 0 };
   private lastPanPoint: Coordinate = { x: 0, y: 0 };
+  private lastEraserWorldPt: Coordinate | null = null;
 
   private cursorCircle: HTMLDivElement;
   private canvas: HTMLCanvasElement;
@@ -108,6 +109,12 @@ export class InputHandler {
     if (e.pointerType === "touch") return;
 
     const worldPt = this.getScreenToWorld(e.clientX, e.clientY);
+
+    if (this.state.currentPen.isEraser) {
+      this.isDrawing = false;
+      this.lastEraserWorldPt = worldPt;
+      return;
+    }
 
     if (this.state.spawningLibraryItem) {
       this.state.spawnLibraryItem(worldPt);
@@ -222,6 +229,12 @@ export class InputHandler {
     if (e.pointerType === "touch") return;
     const worldPt = this.getScreenToWorld(e.clientX, e.clientY);
 
+    if (this.state.currentPen.isEraser && this.lastEraserWorldPt) {
+      this.state.handleEraser(this.lastEraserWorldPt, worldPt);
+      this.lastEraserWorldPt = worldPt;
+      return;
+    }
+
     const threshold = 2 / this.state.camera.zoom;
 
     if (this.isDrawingLasso) {
@@ -311,6 +324,11 @@ export class InputHandler {
     if (this.pointers.size === 0) {
       document.body.classList.remove("canvas-active");
       this.isPanning = false;
+
+      if (this.state.currentPen.isEraser) {
+        this.lastEraserWorldPt = null;
+        this.state.commitEraser();
+      }
 
       if (this.isDrawingLasso) {
         this.isDrawingLasso = false;

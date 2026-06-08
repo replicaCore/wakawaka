@@ -1,3 +1,4 @@
+import { getStroke } from "perfect-freehand";
 import type {
   Project,
   Stroke,
@@ -13,6 +14,7 @@ import {
   getSelectionBounds,
   pointInPolygon,
   isPointInBounds,
+  isEraserIntersectingStroke,
 } from "./SelectionMath";
 import { round1 } from "../shared/utils";
 
@@ -23,6 +25,7 @@ export class State {
 
   public strokes: Stroke[] = [];
   public currentStroke: Point[] = [];
+  public erasingStrokes: Set<Stroke> = new Set();
 
   public selectedStrokes: Set<Stroke> = new Set();
   public lassoPath: Point[] = [];
@@ -111,12 +114,55 @@ export class State {
   public endStroke() {
     if (this.currentStroke.length > 0) {
       this.saveHistory();
+
+      const rawPolygon = getStroke(this.currentStroke, {
+        ...this.currentPen,
+        simulatePressure: false,
+      });
+      const outlinePolygon = rawPolygon.map((pt) => ({ x: pt[0], y: pt[1] }));
+
       this.strokes.push({
         points: [...this.currentStroke],
         color: this.currentColor,
         pen: { ...this.currentPen },
+        outlinePolygon,
       });
       this.currentStroke = [];
+      this.markDirty();
+      this.onUpdate();
+    }
+  }
+
+  public handleEraser(p1: Point, p2: Point) {
+    let found = false;
+    for (const stroke of this.strokes) {
+      if (this.erasingStrokes.has(stroke)) continue;
+
+      if (isEraserIntersectingStroke(p1, p2, stroke, this.camera.zoom)) {
+        if (stroke.groupIds && stroke.groupIds.length > 0) {
+          const topGroup = stroke.groupIds[stroke.groupIds.length - 1];
+          for (const s of this.strokes) {
+            if (s.groupIds && s.groupIds.includes(topGroup)) {
+              this.erasingStrokes.add(s);
+            }
+          }
+        } else {
+          this.erasingStrokes.add(stroke);
+        }
+        found = true;
+      }
+    }
+
+    if (found) {
+      this.onUpdate();
+    }
+  }
+
+  public commitEraser() {
+    if (this.erasingStrokes.size > 0) {
+      this.saveHistory();
+      this.strokes = this.strokes.filter((s) => !this.erasingStrokes.has(s));
+      this.erasingStrokes.clear();
       this.markDirty();
       this.onUpdate();
     }
@@ -236,6 +282,7 @@ export class State {
   public moveSelected(dx: number, dy: number) {
     for (const stroke of this.selectedStrokes) {
       stroke.bounds = undefined;
+      stroke.outlinePolygon = undefined;
       for (const p of stroke.points) {
         p.x = round1(p.x + dx);
         p.y = round1(p.y + dy);
@@ -249,6 +296,7 @@ export class State {
   public scaleSelected(scale: number, origin: Coordinate) {
     for (const stroke of this.selectedStrokes) {
       stroke.bounds = undefined;
+      stroke.outlinePolygon = undefined;
       for (const p of stroke.points) {
         p.x = round1(origin.x + (p.x - origin.x) * scale);
         p.y = round1(origin.y + (p.y - origin.y) * scale);
@@ -309,13 +357,14 @@ export class State {
     if (this.selectedStrokes.size === 0) return;
     this.saveHistory();
 
-    const offset = 20 / this.camera.zoom; // Смещаем визуально на 20px для наглядности
+    const offset = 20 / this.camera.zoom;
     const newSelected = new Set<Stroke>();
-    const groupMap = new Map<string, string>(); // Сохраняем иерархию групп, но с новыми ID
+    const groupMap = new Map<string, string>();
 
     for (const stroke of this.selectedStrokes) {
       const newStroke: Stroke = JSON.parse(JSON.stringify(stroke));
-      newStroke.bounds = undefined; // Заставляем пересчитать границы
+      newStroke.bounds = undefined;
+      newStroke.outlinePolygon = undefined;
 
       if (newStroke.groupIds) {
         newStroke.groupIds = newStroke.groupIds.map((gid) => {

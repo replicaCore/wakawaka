@@ -10,6 +10,8 @@ export type Stroke = {
   pen: PenOptions;
   groupIds?: string[];
   bounds?: { minX: number; minY: number; maxX: number; maxY: number };
+
+  outlinePolygon?: Point[];
 };
 
 export type PenOptions = {
@@ -20,6 +22,7 @@ export type PenOptions = {
   streamline: number;
   isMarker?: boolean;
   isSelector?: boolean;
+  isEraser?: boolean;
 };
 
 export type LibraryItem = {
