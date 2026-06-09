@@ -98,7 +98,7 @@ export class Render {
 
     // ОПТИМИЗАЦИЯ GPU: LOD (Уровень детализации)
     // Если зум меньше 30%, сложные полигоны рисовать нет смысла — рисуем базовые линии
-    const useLOD = camera.zoom < 0.3;
+    const useLOD = camera.zoom < 0.5;
 
     for (const stroke of this.state.strokes) {
       if (!visibleIds.has(stroke.id)) continue;

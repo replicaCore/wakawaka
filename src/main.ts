@@ -31,7 +31,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   const db = new Database();
   try {
     await db.init();
-
     state.libraryItems = await db.getAllLibraryItems();
     state.onLibrarySave = (item) => db.saveLibraryItem(item);
     state.onLibraryDelete = (id) => db.deleteLibraryItem(id);
@@ -39,7 +38,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.error("Failed to init database", e);
   }
 
-  const autosave = new AutosaveService(db, state, canvasElement);
+  // ИСПРАВЛЕНИЕ: Убираем передачу `db` в AutosaveService
+  const autosave = new AutosaveService(state, canvasElement);
 
   // 4. Связывание Обновлений
   state.onUpdate = () => {

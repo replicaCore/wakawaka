@@ -1,14 +1,19 @@
-import type { Database } from "./Database";
+// src/services/Autosave.ts
 import type { State } from "../core/State";
 
 export class AutosaveService {
   private timer: number | null = null;
+  private worker: Worker;
 
   constructor(
-    private db: Database,
     private state: State,
     private canvas: HTMLCanvasElement,
-  ) {}
+  ) {
+    // Инициализируем воркер с помощью встроенного синтаксиса Vite
+    this.worker = new Worker(new URL("./autosave.worker.ts", import.meta.url), {
+      type: "module",
+    });
+  }
 
   public trigger() {
     if (!this.state.currentProjectId) return;
@@ -19,17 +24,26 @@ export class AutosaveService {
     }, 3000) as unknown as number;
   }
 
-  public async forceSave() {
+  // Метод больше не async, так как отправка в воркер происходит мгновенно
+  public forceSave() {
     if (!this.state.currentProjectId || !this.state.isDirty) return;
     if (this.timer) clearTimeout(this.timer);
 
+    // 1. Генерация картинки (Canvas API работает ТОЛЬКО в главном потоке)
     const thumbnail = this.generateThumbnail();
+
+    // 2. Быстро собираем данные
     const data = this.state.getProjectData(false);
 
-    await this.db.saveProject({
-      ...data,
-      thumbnail,
-      updatedAt: Date.now(),
+    // 3. Отправляем в фоновый поток (postMessage делает быстрый structuredClone,
+    // а вот тяжелая запись в БД будет в воркере)
+    this.worker.postMessage({
+      type: "SAVE_PROJECT",
+      payload: {
+        ...data,
+        thumbnail,
+        updatedAt: Date.now(),
+      },
     });
 
     this.state.isDirty = false;
