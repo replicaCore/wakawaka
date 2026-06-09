@@ -10,6 +10,7 @@ import type {
   Coordinate,
   LibraryItem,
   SpatialItem,
+  HistoryStep,
 } from "../shared/types";
 import {
   PEN_PRESETS,
@@ -30,7 +31,7 @@ export class State {
   public currentProjectName: string = "Новый холст";
   public isDirty: boolean = false;
 
-  // ИСПРАВЛЕНИЕ: Нормализованный стейт
+  // Нормализованный стейт
   public strokes: Map<string, Stroke> = new Map();
   public strokeOrder: string[] = []; // Хранит Z-index
 
@@ -72,6 +73,8 @@ export class State {
 
   public spatialIndex = new RBush<SpatialItem>(9);
   private spatialMap = new Map<string, SpatialItem>();
+
+  public syncDeltas = new Map<string, Stroke | null>(); // Для Delta-сохранений
 
   public subscribeUI(fn: () => void) {
     this.uiListeners.push(fn);
@@ -152,7 +155,6 @@ export class State {
     this.spatialIndex.load(items);
   }
 
-  // ИСПРАВЛЕНИЕ: Синхронизация нормализованного стейта из плоского массива (для History/Load)
   private setStrokesFromList(strokesList: Stroke[]) {
     this.strokes.clear();
     this.strokeOrder = [];
@@ -163,15 +165,84 @@ export class State {
     this.rebuildSpatialIndex();
   }
 
-  // Для передачи плоского списка обратно в History/Exporter
   public getStrokesList(): Stroke[] {
     return this.strokeOrder.map((id) => this.strokes.get(id)!).filter(Boolean);
   }
 
+  // --- ИСТОРИЯ (Хирургическое применение) ---
+
+  private applyInverseStep(step: HistoryStep) {
+    switch (step.action) {
+      case "ADD":
+        for (const s of step.strokes) {
+          this.removeStrokeFromIndex(this.strokes.get(s.id)!);
+          this.strokes.delete(s.id);
+          this.strokeOrder = this.strokeOrder.filter((id) => id !== s.id);
+          this.syncDeltas.set(s.id, null);
+        }
+        break;
+      case "DELETE":
+        const restores = step.strokes
+          .map((s, i) => ({
+            stroke: s,
+            index: step.indices?.[i] ?? this.strokeOrder.length,
+          }))
+          .sort((a, b) => a.index - b.index);
+
+        for (const r of restores) {
+          this.strokes.set(r.stroke.id, structuredClone(r.stroke));
+          this.strokeOrder.splice(r.index, 0, r.stroke.id);
+          this.addStrokeToIndex(this.strokes.get(r.stroke.id)!);
+          this.syncDeltas.set(r.stroke.id, this.strokes.get(r.stroke.id)!);
+        }
+        break;
+      case "UPDATE":
+        for (const s of step.before) {
+          this.removeStrokeFromIndex(this.strokes.get(s.id)!);
+          const restored = structuredClone(s);
+          this.strokes.set(s.id, restored);
+          this.addStrokeToIndex(restored);
+          this.syncDeltas.set(s.id, restored);
+        }
+        break;
+    }
+  }
+
+  private applyForwardStep(step: HistoryStep) {
+    switch (step.action) {
+      case "ADD":
+        for (const s of step.strokes) {
+          const cloned = structuredClone(s);
+          this.strokes.set(s.id, cloned);
+          this.strokeOrder.push(s.id);
+          this.addStrokeToIndex(cloned);
+          this.syncDeltas.set(s.id, cloned);
+        }
+        break;
+      case "DELETE":
+        for (const s of step.strokes) {
+          this.removeStrokeFromIndex(this.strokes.get(s.id)!);
+          this.strokes.delete(s.id);
+          this.strokeOrder = this.strokeOrder.filter((id) => id !== s.id);
+          this.syncDeltas.set(s.id, null);
+        }
+        break;
+      case "UPDATE":
+        for (const s of step.after) {
+          this.removeStrokeFromIndex(this.strokes.get(s.id)!);
+          const cloned = structuredClone(s);
+          this.strokes.set(s.id, cloned);
+          this.addStrokeToIndex(cloned);
+          this.syncDeltas.set(s.id, cloned);
+        }
+        break;
+    }
+  }
+
   public undo() {
-    const prevState = this.historyManager.undo(this.getStrokesList());
-    if (prevState) {
-      this.setStrokesFromList(prevState);
+    const step = this.historyManager.undo();
+    if (step) {
+      this.applyInverseStep(step);
       this.selectedStrokes.clear();
       this.markDirty();
       this.onUpdate();
@@ -180,9 +251,9 @@ export class State {
   }
 
   public redo() {
-    const nextState = this.historyManager.redo(this.getStrokesList());
-    if (nextState) {
-      this.setStrokesFromList(nextState);
+    const step = this.historyManager.redo();
+    if (step) {
+      this.applyForwardStep(step);
       this.selectedStrokes.clear();
       this.markDirty();
       this.onUpdate();
@@ -195,6 +266,9 @@ export class State {
     const before = structuredClone(Array.from(this.selectedStrokes));
     updateFn();
     const after = structuredClone(Array.from(this.selectedStrokes));
+    for (const s of this.selectedStrokes) this.syncDeltas.set(s.id, s);
+
+    // Сохраняем индексы для DELETE операций
     this.historyManager.push({ action: "UPDATE", before, after });
     this.markDirty();
     this.onUpdate();
@@ -215,6 +289,7 @@ export class State {
       after,
     });
     this.dragBeforeState = null;
+    for (const s of this.selectedStrokes) this.syncDeltas.set(s.id, s);
   }
 
   public addPoint(point: Point) {
@@ -239,15 +314,16 @@ export class State {
         _pathDirty: true,
       };
 
-      // ИСПРАВЛЕНИЕ: Добавление в Map и Order
       this.strokes.set(newStroke.id, newStroke);
       this.strokeOrder.push(newStroke.id);
-
       this.currentStroke = [];
+      this.syncDeltas.set(newStroke.id, newStroke);
+
       this.historyManager.push({
         action: "ADD",
         strokes: [structuredClone(newStroke)],
       });
+
       this.addStrokeToIndex(newStroke);
       this.markDirty();
       this.onUpdate();
@@ -274,8 +350,6 @@ export class State {
       if (isEraserIntersectingStroke(p1, p2, stroke, this.camera.zoom)) {
         if (stroke.groupIds && stroke.groupIds.length > 0) {
           const topGroup = stroke.groupIds[stroke.groupIds.length - 1];
-          // ИСПРАВЛЕНИЕ: Оптимизированный поиск групп, хотя тут мы все еще итерируем Order,
-          // но это можно вынести в отдельный GroupMap
           for (const id of this.strokeOrder) {
             const s = this.strokes.get(id)!;
             if (s.groupIds && s.groupIds.includes(topGroup)) {
@@ -294,18 +368,19 @@ export class State {
   public commitEraser() {
     if (this.erasingStrokes.size > 0) {
       const erasedArr = Array.from(this.erasingStrokes);
+      const indices = erasedArr.map((s) => this.strokeOrder.indexOf(s.id));
       this.historyManager.push({
         action: "DELETE",
         strokes: structuredClone(erasedArr),
+        indices,
       });
 
       for (const s of erasedArr) {
         this.removeStrokeFromIndex(s);
-        // ИСПРАВЛЕНИЕ: Удаление за O(1) из Map
         this.strokes.delete(s.id);
+        this.syncDeltas.set(s.id, null); // Помечаем как удаленное
       }
 
-      // Удаляем из Order
       const erasedIds = new Set(erasedArr.map((s) => s.id));
       this.strokeOrder = this.strokeOrder.filter((id) => !erasedIds.has(id));
 
@@ -374,7 +449,6 @@ export class State {
       .map((i) => i.stroke);
     const groupMap = new Map<string, Stroke[]>();
 
-    // ИСПРАВЛЕНИЕ: Итерация по Values
     for (const stroke of this.strokes.values()) {
       if (stroke.groupIds && stroke.groupIds.length > 0) {
         const topGroup = stroke.groupIds[stroke.groupIds.length - 1];
@@ -422,21 +496,23 @@ export class State {
 
   public deleteSelection() {
     if (this.selectedStrokes.size === 0) return;
-
+    const delArr = Array.from(this.selectedStrokes);
+    const indices = delArr.map((s) => this.strokeOrder.indexOf(s.id));
     this.historyManager.push({
       action: "DELETE",
-      strokes: structuredClone(Array.from(this.selectedStrokes)),
+      strokes: structuredClone(delArr),
+      indices,
     });
 
     const deletedIds = new Set<string>();
     for (const s of this.selectedStrokes) {
       this.removeStrokeFromIndex(s);
       this.strokes.delete(s.id);
+      this.syncDeltas.set(s.id, null);
       deletedIds.add(s.id);
     }
 
     this.strokeOrder = this.strokeOrder.filter((id) => !deletedIds.has(id));
-
     this.selectedStrokes.clear();
     this.markDirty();
     this.onUpdate();
@@ -572,6 +648,7 @@ export class State {
       action: "ADD",
       strokes: structuredClone(newStrokesList),
     });
+
     this.selectedStrokes = newSelected;
     this.selectionMode = "move";
     this.markDirty();
@@ -611,6 +688,7 @@ export class State {
     if (project) {
       this.currentProjectId = project.id;
       this.currentProjectName = project.name;
+      this.syncDeltas.clear();
       this.backgroundColor = project.backgroundColor || "#000000";
       this.camera = project.camera || { x: 0, y: 0, zoom: 1 };
       this.selectionDragAnywhere = project.selectionDragAnywhere ?? true;
@@ -668,7 +746,7 @@ export class State {
       penSizes: this.penSizes,
       redoHistory: includeHistory ? redoHistory : [],
       selectionDragAnywhere: this.selectionDragAnywhere,
-      strokes: this.getStrokesList(), // ИСПРАВЛЕНИЕ: Конвертируем нормализованный стейт в массив
+      strokes: this.getStrokesList(),
       thumbnail: "",
       updatedAt: Date.now(),
     };
@@ -676,11 +754,6 @@ export class State {
 
   public spawnLibraryItem(pt: Coordinate) {
     if (!this.spawningLibraryItem) return;
-
-    this.historyManager.push({
-      action: "ADD",
-      strokes: structuredClone(this.spawningLibraryItem.strokes),
-    });
 
     const bounds = getSelectionBounds(this.spawningLibraryItem.strokes);
     if (!bounds) return;
@@ -709,6 +782,11 @@ export class State {
       this.strokeOrder.push(s.id);
       this.addStrokeToIndex(s);
     }
+
+    this.historyManager.push({
+      action: "ADD",
+      strokes: structuredClone(newStrokes),
+    });
 
     this.selectedStrokes = new Set(newStrokes);
     this.spawningLibraryItem = null;

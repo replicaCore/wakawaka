@@ -20,7 +20,7 @@ export type HistoryAction = "ADD" | "DELETE" | "UPDATE";
 
 export type HistoryStep =
   | { action: "ADD"; strokes: Stroke[] }
-  | { action: "DELETE"; strokes: Stroke[] }
+  | { action: "DELETE"; strokes: Stroke[]; indices?: number[] }
   | { action: "UPDATE"; before: Stroke[]; after: Stroke[] };
 
 export type Project = {

@@ -13,9 +13,7 @@ export class Render {
   private framesThisSecond = 0;
   private fpsElement = document.getElementById("fps-counter");
 
-  // Кэш для сложной геометрии (Perfect Freehand)
   private pathCache = new WeakMap<Stroke, Path2D>();
-  // Кэш для упрощенной геометрии (Level of Detail)
   private simplePathCache = new WeakMap<Stroke, Path2D>();
 
   constructor(canvas: HTMLCanvasElement, state: State) {
@@ -95,7 +93,7 @@ export class Render {
     });
 
     const visibleIds = new Set(visibleItems.map((item) => item.stroke.id));
-    const useLOD = camera.zoom < 0.5;
+    const useLOD = camera.zoom < 0.3;
 
     // ИСПРАВЛЕНИЕ: Итерируемся по массиву strokeOrder, чтобы сохранить Z-index
     for (const strokeId of this.state.strokeOrder) {

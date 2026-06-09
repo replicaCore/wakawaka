@@ -2,19 +2,33 @@ import { getStroke } from "perfect-freehand";
 import type { Coordinate, Point, Stroke } from "../shared/types";
 import { SELECTION_BOUNDS_PADDING, ERASER_HITBOX_PADDING } from "./State-const";
 
-export function pointInPolygon(pt: Coordinate, polygon: Coordinate[]) {
-  let isInside = false;
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i].x,
-      yi = polygon[i].y;
-    const xj = polygon[j].x,
-      yj = polygon[j].y;
-    const intersect =
-      yi > pt.y !== yj > pt.y &&
-      pt.x < ((xj - xi) * (pt.y - yi)) / (yj - yi) + xi;
-    if (intersect) isInside = !isInside;
+export function pointInPolygon(A: Coordinate, points: Coordinate[]): boolean {
+  let windingNumber = 0;
+  let a: Coordinate;
+  let b: Coordinate;
+
+  for (let i = 0; i < points.length; i++) {
+    a = points[i];
+    if (a.x === A.x && a.y === A.y) return true;
+
+    b = points[(i + 1) % points.length];
+
+    if (a.y <= A.y) {
+      if (
+        b.y > A.y &&
+        (b.x - a.x) * (A.y - a.y) - (A.x - a.x) * (b.y - a.y) > 0
+      ) {
+        windingNumber += 1;
+      }
+    } else if (
+      b.y <= A.y &&
+      (b.x - a.x) * (A.y - a.y) - (A.x - a.x) * (b.y - a.y) < 0
+    ) {
+      windingNumber -= 1;
+    }
   }
-  return isInside;
+
+  return windingNumber !== 0;
 }
 
 export function getSelectionBounds(strokes: Set<Stroke> | Stroke[]) {
@@ -72,16 +86,34 @@ export function doBoundsIntersect(
 }
 
 export function segmentsIntersect(
-  a: Point,
-  b: Point,
-  c: Point,
-  d: Point,
+  a1: Point,
+  a2: Point,
+  b1: Point,
+  b2: Point,
+  precision = 1e-10,
 ): boolean {
-  const det = (b.x - a.x) * (d.y - c.y) - (d.x - c.x) * (b.y - a.y);
-  if (det === 0) return false;
-  const lambda = ((d.y - c.y) * (d.x - a.x) + (c.x - d.x) * (d.y - a.y)) / det;
-  const gamma = ((a.y - b.y) * (d.x - a.x) + (b.x - a.x) * (d.y - a.y)) / det;
-  return 0 < lambda && lambda < 1 && 0 < gamma && gamma < 1;
+  const ABx = a1.x - b1.x;
+  const ABy = a1.y - b1.y;
+  const BVx = b2.x - b1.x;
+  const BVy = b2.y - b1.y;
+  const AVx = a2.x - a1.x;
+  const AVy = a2.y - a1.y;
+  const ua_t = BVx * ABy - BVy * ABx;
+  const ub_t = AVx * ABy - AVy * ABx;
+  const u_b = BVy * AVx - BVx * AVy;
+
+  if (Math.abs(ua_t) <= precision || Math.abs(ub_t) <= precision) return false; // Совпадают
+  if (Math.abs(u_b) <= precision) return false; // Параллельны
+
+  const ua = ua_t / u_b;
+  const ub = ub_t / u_b;
+
+  return (
+    ua >= -precision &&
+    ua <= 1 + precision &&
+    ub >= -precision &&
+    ub <= 1 + precision
+  );
 }
 
 export function isEraserIntersectingStroke(
