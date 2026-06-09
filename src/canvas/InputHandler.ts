@@ -1,3 +1,4 @@
+// src/canvas/InputHandler.ts
 import { round1 } from "../shared/utils";
 import type { State } from "../core/State";
 import type { Coordinate } from "../shared/types";
@@ -255,7 +256,8 @@ export class InputHandler {
 
     if (this.isDraggingSelection) {
       if (!this.hasDragged) {
-        this.state.saveHistory();
+        // ИСПРАВЛЕНИЕ: Вместо saveHistory используем старт непрерывного обновления
+        this.state.startContinuousUpdate();
         this.hasDragged = true;
       }
 
@@ -337,10 +339,10 @@ export class InputHandler {
 
       if (this.isDraggingSelection) {
         this.isDraggingSelection = false;
-        if (
-          !this.hasDragged &&
-          !this.state.isPointInSelectionBox(this.lastDragWorldPt)
-        ) {
+        // ИСПРАВЛЕНИЕ: Закрываем непрерывное обновление при отпускании мыши
+        if (this.hasDragged) {
+          this.state.commitContinuousUpdate();
+        } else if (!this.state.isPointInSelectionBox(this.lastDragWorldPt)) {
           this.state.selectedStrokes.clear();
           this.state.triggerUIUpdate();
           this.state.onUpdate();
@@ -374,7 +376,7 @@ export class InputHandler {
     camera.zoom = newZoom;
 
     this.state.onUpdate();
-    this.state.triggerUIUpdate(); // Обязательно: UI тулбар должен масштабироваться!
+    this.state.triggerUIUpdate();
     this.updateCursorVisual(e as unknown as PointerEvent);
   };
 

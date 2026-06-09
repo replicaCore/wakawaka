@@ -62,7 +62,9 @@ export class State {
   public onUpdate: () => void = () => {};
   private uiListeners: (() => void)[] = [];
 
-  // ИСПРАВЛЕНИЕ: Возвращаем функцию отписки, чтобы предотвратить утечку памяти
+  // Кэш для непрерывного перетаскивания (Move / Scale)
+  private dragBeforeState: Stroke[] | null = null;
+
   public subscribeUI(fn: () => void) {
     this.uiListeners.push(fn);
     return () => {
@@ -82,10 +84,6 @@ export class State {
 
   public markDirty() {
     this.isDirty = true;
-  }
-
-  public saveHistory() {
-    this.historyManager.save(this.strokes);
   }
 
   public undo() {
@@ -110,6 +108,35 @@ export class State {
     }
   }
 
+  // Для моментальных действий по клику кнопки (Отражение, Цвет и т.д.)
+  private executeUpdate(updateFn: () => void) {
+    if (this.selectedStrokes.size === 0) return;
+    const before = structuredClone(Array.from(this.selectedStrokes));
+    updateFn();
+    const after = structuredClone(Array.from(this.selectedStrokes));
+    this.historyManager.push({ action: "UPDATE", before, after });
+    this.markDirty();
+    this.onUpdate();
+    this.triggerUIUpdate();
+  }
+
+  // НОВОЕ: Для непрерывного перетаскивания (Start -> Move... -> Commit)
+  public startContinuousUpdate() {
+    if (this.selectedStrokes.size === 0) return;
+    this.dragBeforeState = structuredClone(Array.from(this.selectedStrokes));
+  }
+
+  public commitContinuousUpdate() {
+    if (!this.dragBeforeState || this.selectedStrokes.size === 0) return;
+    const after = structuredClone(Array.from(this.selectedStrokes));
+    this.historyManager.push({
+      action: "UPDATE",
+      before: this.dragBeforeState,
+      after,
+    });
+    this.dragBeforeState = null;
+  }
+
   public addPoint(point: Point) {
     this.currentStroke.push(point);
     this.onUpdate();
@@ -117,21 +144,28 @@ export class State {
 
   public endStroke() {
     if (this.currentStroke.length > 0) {
-      this.saveHistory();
-
       const rawPolygon = getStroke(this.currentStroke, {
         ...this.currentPen,
         simulatePressure: false,
       });
       const outlinePolygon = rawPolygon.map((pt) => ({ x: pt[0], y: pt[1] }));
 
-      this.strokes.push({
+      const newStroke: Stroke = {
+        id: this.generateId(),
         points: [...this.currentStroke],
         color: this.currentColor,
         pen: { ...this.currentPen },
         outlinePolygon,
-      });
+      };
+
+      this.strokes.push(newStroke);
       this.currentStroke = [];
+
+      this.historyManager.push({
+        action: "ADD",
+        strokes: [structuredClone(newStroke)],
+      });
+
       this.markDirty();
       this.onUpdate();
     }
@@ -161,7 +195,13 @@ export class State {
 
   public commitEraser() {
     if (this.erasingStrokes.size > 0) {
-      this.saveHistory();
+      const erasedArr = Array.from(this.erasingStrokes);
+
+      this.historyManager.push({
+        action: "DELETE",
+        strokes: structuredClone(erasedArr),
+      });
+
       this.strokes = this.strokes.filter((s) => !this.erasingStrokes.has(s));
       this.erasingStrokes.clear();
       this.markDirty();
@@ -179,14 +219,10 @@ export class State {
 
   public setColor(color: string) {
     this.currentColor = color;
-
-    // ИСПРАВЛЕНИЕ: Логика document.documentElement.classList удалена отсюда в UI-слой
-
     if (this.selectedStrokes.size > 0) {
-      this.saveHistory();
-      for (const stroke of this.selectedStrokes) stroke.color = color;
-      this.markDirty();
-      this.onUpdate();
+      this.executeUpdate(() => {
+        for (const stroke of this.selectedStrokes) stroke.color = color;
+      });
     }
     this.triggerUIUpdate();
   }
@@ -210,14 +246,12 @@ export class State {
     return isPointInBounds(pt, bounds);
   }
 
-  // ОПТИМИЗАЦИЯ: Исправлен тяжелый цикл O(N^2)
   public updateLassoSelection() {
     if (this.lassoPath.length < 3) {
       this.selectedStrokes.clear();
       return;
     }
 
-    // 1. Предварительно создаем Map для быстрого доступа к группам O(1)
     const groupMap = new Map<string, Stroke[]>();
     for (const stroke of this.strokes) {
       if (stroke.groupIds && stroke.groupIds.length > 0) {
@@ -230,7 +264,6 @@ export class State {
     const initiallySelected = new Set<Stroke>();
     const processedGroups = new Set<string>();
 
-    // 2. Проходим по всем штрихам ровно один раз
     for (const stroke of this.strokes) {
       if (initiallySelected.has(stroke)) continue;
 
@@ -245,14 +278,13 @@ export class State {
       if (intersects) {
         if (stroke.groupIds && stroke.groupIds.length > 0) {
           const topGroup = stroke.groupIds[stroke.groupIds.length - 1];
-          // Если группа еще не добавлена, добавляем сразу все элементы из неё
           if (!processedGroups.has(topGroup)) {
             processedGroups.add(topGroup);
             const groupStrokes = groupMap.get(topGroup) || [];
             for (const s of groupStrokes) initiallySelected.add(s);
           }
         } else {
-          initiallySelected.add(stroke); // Если штрих без группы
+          initiallySelected.add(stroke);
         }
       }
     }
@@ -268,7 +300,12 @@ export class State {
 
   public deleteSelection() {
     if (this.selectedStrokes.size === 0) return;
-    this.saveHistory();
+
+    this.historyManager.push({
+      action: "DELETE",
+      strokes: structuredClone(Array.from(this.selectedStrokes)),
+    });
+
     this.strokes = this.strokes.filter((s) => !this.selectedStrokes.has(s));
     this.selectedStrokes.clear();
     this.markDirty();
@@ -277,13 +314,13 @@ export class State {
   }
 
   public changeSelectionColor() {
-    if (this.selectedStrokes.size === 0) return;
-    this.saveHistory();
-    for (const stroke of this.selectedStrokes) stroke.color = this.currentColor;
-    this.markDirty();
-    this.onUpdate();
+    this.executeUpdate(() => {
+      for (const stroke of this.selectedStrokes)
+        stroke.color = this.currentColor;
+    });
   }
 
+  // ИСПРАВЛЕНИЕ: Убрали executeUpdate (чтобы не жрало память 60 раз в секунду)
   public moveSelected(dx: number, dy: number) {
     for (const stroke of this.selectedStrokes) {
       stroke.bounds = undefined;
@@ -298,6 +335,7 @@ export class State {
     this.triggerUIUpdate();
   }
 
+  // ИСПРАВЛЕНИЕ: Убрали executeUpdate
   public scaleSelected(scale: number, origin: Coordinate) {
     for (const stroke of this.selectedStrokes) {
       stroke.bounds = undefined;
@@ -315,6 +353,7 @@ export class State {
 
   public groupSelected() {
     if (this.selectedStrokes.size < 2) return;
+
     const topLevelEntities = new Set<string>();
     let ungroupedCount = 0;
     for (const stroke of this.selectedStrokes) {
@@ -326,54 +365,53 @@ export class State {
     }
     if (topLevelEntities.size + ungroupedCount < 2) return;
 
-    this.saveHistory();
-    const newGroupId = Math.random().toString(36).substring(2, 10);
-    for (const stroke of this.selectedStrokes) {
-      if (!stroke.groupIds) stroke.groupIds = [];
-      stroke.groupIds.push(newGroupId);
-    }
-    this.markDirty();
-    this.onUpdate();
-    this.triggerUIUpdate();
+    const newGroupId = this.generateId();
+    this.executeUpdate(() => {
+      for (const stroke of this.selectedStrokes) {
+        if (!stroke.groupIds) stroke.groupIds = [];
+        stroke.groupIds.push(newGroupId);
+      }
+    });
   }
 
   public ungroupSelected() {
     if (this.selectedStrokes.size === 0) return;
-    this.saveHistory();
-    const topGroupsToUngroup = new Set<string>();
-    for (const stroke of this.selectedStrokes) {
-      if (stroke.groupIds && stroke.groupIds.length > 0) {
-        topGroupsToUngroup.add(stroke.groupIds[stroke.groupIds.length - 1]);
+
+    this.executeUpdate(() => {
+      const topGroupsToUngroup = new Set<string>();
+      for (const stroke of this.selectedStrokes) {
+        if (stroke.groupIds && stroke.groupIds.length > 0) {
+          topGroupsToUngroup.add(stroke.groupIds[stroke.groupIds.length - 1]);
+        }
       }
-    }
-    for (const stroke of this.strokes) {
-      if (stroke.groupIds && stroke.groupIds.length > 0) {
-        const top = stroke.groupIds[stroke.groupIds.length - 1];
-        if (topGroupsToUngroup.has(top)) stroke.groupIds.pop();
+      for (const stroke of this.strokes) {
+        if (stroke.groupIds && stroke.groupIds.length > 0) {
+          const top = stroke.groupIds[stroke.groupIds.length - 1];
+          if (topGroupsToUngroup.has(top)) stroke.groupIds.pop();
+        }
       }
-    }
-    this.markDirty();
-    this.onUpdate();
-    this.triggerUIUpdate();
+    });
   }
 
   public duplicateSelected() {
     if (this.selectedStrokes.size === 0) return;
-    this.saveHistory();
 
     const offset = DUPLICATE_OFFSET_PX / this.camera.zoom;
     const newSelected = new Set<Stroke>();
     const groupMap = new Map<string, string>();
+    const newStrokesList: Stroke[] = [];
 
     for (const stroke of this.selectedStrokes) {
-      const newStroke: Stroke = structuredClone(stroke); // Оптимизация
+      const newStroke: Stroke = structuredClone(stroke);
+
+      newStroke.id = this.generateId();
       newStroke.bounds = undefined;
       newStroke.outlinePolygon = undefined;
 
       if (newStroke.groupIds) {
         newStroke.groupIds = newStroke.groupIds.map((gid) => {
           if (!groupMap.has(gid)) {
-            groupMap.set(gid, Math.random().toString(36).substring(2, 10));
+            groupMap.set(gid, this.generateId());
           }
           return groupMap.get(gid)!;
         });
@@ -386,7 +424,13 @@ export class State {
 
       this.strokes.push(newStroke);
       newSelected.add(newStroke);
+      newStrokesList.push(newStroke);
     }
+
+    this.historyManager.push({
+      action: "ADD",
+      strokes: structuredClone(newStrokesList),
+    });
 
     this.selectedStrokes = newSelected;
     this.selectionMode = "move";
@@ -400,34 +444,36 @@ export class State {
     const bounds = this.getSelectionBounds();
     if (!bounds) return;
 
-    this.saveHistory();
     const cx = (bounds.minX + bounds.maxX) / 2;
     const cy = (bounds.minY + bounds.maxY) / 2;
 
-    for (const stroke of this.selectedStrokes) {
-      // ИСПРАВЛЕНИЕ: Добавлен сброс кэша полигона (иначе ластик не работал бы)
-      stroke.bounds = undefined;
-      stroke.outlinePolygon = undefined;
+    this.executeUpdate(() => {
+      for (const stroke of this.selectedStrokes) {
+        stroke.bounds = undefined;
+        stroke.outlinePolygon = undefined;
 
-      for (const p of stroke.points) {
-        if (direction === "horizontal") {
-          p.x = round1(2 * cx - p.x);
-        } else {
-          p.y = round1(2 * cy - p.y);
+        for (const p of stroke.points) {
+          if (direction === "horizontal") {
+            p.x = round1(2 * cx - p.x);
+          } else {
+            p.y = round1(2 * cy - p.y);
+          }
         }
       }
-    }
-
-    this.markDirty();
-    this.onUpdate();
-    this.triggerUIUpdate();
+    });
   }
 
   public loadProject(project: Project | null) {
     if (project) {
       this.currentProjectId = project.id;
       this.currentProjectName = project.name;
-      this.strokes = project.strokes || [];
+
+      // ИСПРАВЛЕНИЕ: Добавляем ID старым проектам при загрузке, чтобы не ломалась история!
+      this.strokes = (project.strokes || []).map((stroke) => {
+        if (!stroke.id) stroke.id = this.generateId();
+        return stroke;
+      });
+
       this.backgroundColor = project.backgroundColor || "#000000";
       this.camera = project.camera || { x: 0, y: 0, zoom: 1 };
       this.selectionDragAnywhere = project.selectionDragAnywhere ?? true;
@@ -486,7 +532,11 @@ export class State {
 
   public spawnLibraryItem(pt: Coordinate) {
     if (!this.spawningLibraryItem) return;
-    this.saveHistory();
+
+    this.historyManager.push({
+      action: "ADD",
+      strokes: structuredClone(this.spawningLibraryItem.strokes),
+    });
 
     const bounds = getSelectionBounds(this.spawningLibraryItem.strokes);
     if (!bounds) return;
@@ -499,9 +549,10 @@ export class State {
     const newStrokes: Stroke[] = structuredClone(
       this.spawningLibraryItem.strokes,
     );
-    const newGroupId = Math.random().toString(36).substring(2, 10);
+    const newGroupId = this.generateId();
 
     for (const s of newStrokes) {
+      s.id = this.generateId();
       s.bounds = undefined;
       if (!s.groupIds) s.groupIds = [];
       s.groupIds.push(newGroupId);
@@ -520,5 +571,11 @@ export class State {
     this.markDirty();
     this.onUpdate();
     this.triggerUIUpdate();
+  }
+
+  private generateId() {
+    return (
+      Math.random().toString(36).substring(2, 12) + Date.now().toString(36)
+    );
   }
 }

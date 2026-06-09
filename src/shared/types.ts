@@ -5,13 +5,39 @@ export type Point = Coordinate;
 export type Camera = { x: number; y: number; zoom: number };
 
 export type Stroke = {
+  id: string; // <-- НОВОЕ: Уникальный ID обязателен
   points: Point[];
   color: string;
   pen: PenOptions;
   groupIds?: string[];
   bounds?: { minX: number; minY: number; maxX: number; maxY: number };
-
   outlinePolygon?: Point[];
+};
+
+export type HistoryAction = "ADD" | "DELETE" | "UPDATE";
+
+export type HistoryStep =
+  | { action: "ADD"; strokes: Stroke[] }
+  | { action: "DELETE"; strokes: Stroke[] }
+  | { action: "UPDATE"; before: Stroke[]; after: Stroke[] };
+
+export type Project = {
+  id: string;
+  name: string;
+  thumbnail: string;
+  updatedAt: number;
+  strokes: Stroke[];
+  backgroundColor: string;
+  camera: Camera;
+  penSizes?: [number, number, number];
+  activeSizeIndex?: number;
+  penOptions?: PenOptions;
+
+  // Изменяем структуру истории в проекте
+  history?: HistoryStep[];
+  redoHistory?: HistoryStep[];
+
+  selectionDragAnywhere?: boolean;
 };
 
 export type PenOptions = {
@@ -29,24 +55,4 @@ export type LibraryItem = {
   id: string;
   strokes: Stroke[];
   thumbnail: string;
-};
-
-export type Project = {
-  id: string;
-  name: string;
-  thumbnail: string;
-  updatedAt: number;
-
-  strokes: Stroke[];
-  backgroundColor: string;
-  camera: Camera;
-
-  penSizes?: [number, number, number];
-  activeSizeIndex?: number;
-  penOptions?: PenOptions;
-
-  history?: Stroke[][];
-  redoHistory?: Stroke[][];
-
-  selectionDragAnywhere?: boolean;
 };
