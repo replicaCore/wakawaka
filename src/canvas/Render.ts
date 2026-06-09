@@ -13,7 +13,10 @@ export class Render {
   private framesThisSecond = 0;
   private fpsElement = document.getElementById("fps-counter");
 
+  // Кэш для сложной геометрии (Perfect Freehand)
   private pathCache = new WeakMap<Stroke, Path2D>();
+  // Кэш для упрощенной геометрии (Level of Detail)
+  private simplePathCache = new WeakMap<Stroke, Path2D>();
 
   constructor(canvas: HTMLCanvasElement, state: State) {
     this.canvas = canvas;
@@ -77,13 +80,13 @@ export class Render {
   private drawAllStrokes() {
     const { camera, spatialIndex } = this.state;
 
-    // Границы видимости камеры
+    // 1. Границы видимости камеры (View Frustum)
     const vpMinX = -camera.x / camera.zoom;
     const vpMinY = -camera.y / camera.zoom;
     const vpMaxX = (window.innerWidth - camera.x) / camera.zoom;
     const vpMaxY = (window.innerHeight - camera.y) / camera.zoom;
 
-    // RBush - получаем только видимые штрихи
+    // 2. Получаем видимые штрихи за O(log N)
     const visibleItems = spatialIndex.search({
       minX: vpMinX,
       minY: vpMinY,
@@ -93,13 +96,19 @@ export class Render {
 
     const visibleIds = new Set(visibleItems.map((item) => item.stroke.id));
 
+    // ОПТИМИЗАЦИЯ GPU: LOD (Уровень детализации)
+    // Если зум меньше 30%, сложные полигоны рисовать нет смысла — рисуем базовые линии
+    const useLOD = camera.zoom < 0.3;
+
     for (const stroke of this.state.strokes) {
       if (!visibleIds.has(stroke.id)) continue;
 
       let path = this.pathCache.get(stroke);
+      let simplePath = this.simplePathCache.get(stroke);
 
-      // Проверяем флаг _pathDirty для перерасчета
-      if (!path || stroke._pathDirty) {
+      // Генерируем кэш, если его нет ИЛИ если геометрия изменилась
+      if (!path || !simplePath || stroke._pathDirty) {
+        // --- 1. Детальный полигон (perfect-freehand) ---
         const outlinePoints = getStroke(stroke.points, {
           ...stroke.pen,
           simulatePressure: false,
@@ -107,10 +116,20 @@ export class Render {
         path = new Path2D(getSvgPathFromStroke(outlinePoints));
         this.pathCache.set(stroke, path);
 
-        stroke._pathDirty = false; // Сбрасываем флаг после успешного расчета
+        // --- 2. Упрощенная линия (LOD Cache) ---
+        simplePath = new Path2D();
+        if (stroke.points.length > 0) {
+          simplePath.moveTo(stroke.points[0].x, stroke.points[0].y);
+          for (let i = 1; i < stroke.points.length; i++) {
+            simplePath.lineTo(stroke.points[i].x, stroke.points[i].y);
+          }
+        }
+        this.simplePathCache.set(stroke, simplePath);
+
+        stroke._pathDirty = false;
       }
 
-      this.ctx.fillStyle = stroke.color;
+      // Применяем стили прозрачности
       if (this.state.erasingStrokes.has(stroke)) {
         this.ctx.globalAlpha = 0.3;
       } else if (stroke.pen.isMarker) {
@@ -119,12 +138,24 @@ export class Render {
         this.ctx.globalAlpha = 1.0;
       }
 
-      this.ctx.fill(path);
+      // Выбор режима отрисовки
+      if (useLOD) {
+        // Рендер сверхбыстрой простой линии
+        this.ctx.strokeStyle = stroke.color;
+        this.ctx.lineWidth = stroke.pen.size;
+        this.ctx.lineCap = "round";
+        this.ctx.lineJoin = "round";
+        this.ctx.stroke(simplePath);
+      } else {
+        // Рендер детального полигона
+        this.ctx.fillStyle = stroke.color;
+        this.ctx.fill(path);
+      }
     }
 
     this.ctx.globalAlpha = 1.0;
 
-    // Текущая рисуемая линия
+    // Текущая (живая) линия всегда рисуется детально, т.к. она одна
     if (this.state.currentStroke.length > 0) {
       this.ctx.fillStyle = this.state.currentColor;
       if (this.state.currentPen.isMarker) this.ctx.globalAlpha = 0.4;
@@ -133,11 +164,13 @@ export class Render {
         ...this.state.currentPen,
         simulatePressure: false,
       });
-      const path = new Path2D(getSvgPathFromStroke(outlinePoints));
-      this.ctx.fill(path);
+      const currentPath = new Path2D(getSvgPathFromStroke(outlinePoints));
+      this.ctx.fill(currentPath);
       this.ctx.globalAlpha = 1.0;
     }
   }
+
+  // --- Вспомогательные методы рендера (без изменений) ---
 
   private computeStrokeBounds(stroke: Stroke) {
     if (stroke.points.length === 0) return undefined;
