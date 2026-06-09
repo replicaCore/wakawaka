@@ -1,3 +1,4 @@
+// src/shared/types.ts
 export type Coordinate = { x: number; y: number };
 
 export type Point = Coordinate;
@@ -5,13 +6,14 @@ export type Point = Coordinate;
 export type Camera = { x: number; y: number; zoom: number };
 
 export type Stroke = {
-  id: string; // <-- НОВОЕ: Уникальный ID обязателен
+  id: string;
   points: Point[];
   color: string;
   pen: PenOptions;
   groupIds?: string[];
   bounds?: { minX: number; minY: number; maxX: number; maxY: number };
   outlinePolygon?: Point[];
+  _pathDirty?: boolean; // <-- НОВОЕ: Флаг инвалидации кэша отрисовки
 };
 
 export type HistoryAction = "ADD" | "DELETE" | "UPDATE";
@@ -32,11 +34,8 @@ export type Project = {
   penSizes?: [number, number, number];
   activeSizeIndex?: number;
   penOptions?: PenOptions;
-
-  // Изменяем структуру истории в проекте
   history?: HistoryStep[];
   redoHistory?: HistoryStep[];
-
   selectionDragAnywhere?: boolean;
 };
 
@@ -56,3 +55,11 @@ export type LibraryItem = {
   strokes: Stroke[];
   thumbnail: string;
 };
+
+export interface SpatialItem {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  stroke: Stroke;
+}

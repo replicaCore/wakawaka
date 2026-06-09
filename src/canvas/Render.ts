@@ -75,53 +75,44 @@ export class Render {
   };
 
   private drawAllStrokes() {
-    const { camera } = this.state;
-    // Границы видимости камеры (Frustum)
+    const { camera, spatialIndex } = this.state;
+
+    // Границы видимости камеры
     const vpMinX = -camera.x / camera.zoom;
     const vpMinY = -camera.y / camera.zoom;
     const vpMaxX = (window.innerWidth - camera.x) / camera.zoom;
     const vpMaxY = (window.innerHeight - camera.y) / camera.zoom;
 
+    // RBush - получаем только видимые штрихи
+    const visibleItems = spatialIndex.search({
+      minX: vpMinX,
+      minY: vpMinY,
+      maxX: vpMaxX,
+      maxY: vpMaxY,
+    });
+
+    const visibleIds = new Set(visibleItems.map((item) => item.stroke.id));
+
     for (const stroke of this.state.strokes) {
-      let needsPathRecalculation = false;
+      if (!visibleIds.has(stroke.id)) continue;
 
-      // ОПТИМИЗАЦИЯ 1: Жесткий Culling и расчет границ
-      if (!stroke.bounds) {
-        stroke.bounds = this.computeStrokeBounds(stroke);
-        // Если границы отсутствуют (например линия только что нарисована,
-        // перемещена или отмасштабирована), значит нужно пересчитать и Path2D
-        needsPathRecalculation = true;
-      }
-
-      const b = stroke.bounds;
-      // Если объект за пределами экрана — вообще не передаем его в Canvas API
-      if (
-        b &&
-        (b.maxX < vpMinX ||
-          b.minX > vpMaxX ||
-          b.maxY < vpMinY ||
-          b.minY > vpMaxY)
-      ) {
-        continue;
-      }
-
-      // ОПТИМИЗАЦИЯ 2: Векторный кэш
       let path = this.pathCache.get(stroke);
 
-      if (!path || needsPathRecalculation) {
-        // Выполняем тяжелую математику ТОЛЬКО ОДИН РАЗ для каждой линии
+      // Проверяем флаг _pathDirty для перерасчета
+      if (!path || stroke._pathDirty) {
         const outlinePoints = getStroke(stroke.points, {
           ...stroke.pen,
           simulatePressure: false,
         });
         path = new Path2D(getSvgPathFromStroke(outlinePoints));
         this.pathCache.set(stroke, path);
+
+        stroke._pathDirty = false; // Сбрасываем флаг после успешного расчета
       }
 
-      // Сверхбыстрая отрисовка закэшированного пути
       this.ctx.fillStyle = stroke.color;
       if (this.state.erasingStrokes.has(stroke)) {
-        this.ctx.globalAlpha = 0.3; // Как в Excalidraw!
+        this.ctx.globalAlpha = 0.3;
       } else if (stroke.pen.isMarker) {
         this.ctx.globalAlpha = 0.4;
       } else {
@@ -129,12 +120,11 @@ export class Render {
       }
 
       this.ctx.fill(path);
-      this.ctx.globalAlpha = 1.0;
     }
 
-    // ОПТИМИЗАЦИЯ 3: Текущая (активная) линия
-    // Она пересчитывается каждый кадр, так как она "живая".
-    // Как только отпустим стилус, она попадет в массив strokes и закэшируется.
+    this.ctx.globalAlpha = 1.0;
+
+    // Текущая рисуемая линия
     if (this.state.currentStroke.length > 0) {
       this.ctx.fillStyle = this.state.currentColor;
       if (this.state.currentPen.isMarker) this.ctx.globalAlpha = 0.4;
@@ -145,7 +135,6 @@ export class Render {
       });
       const path = new Path2D(getSvgPathFromStroke(outlinePoints));
       this.ctx.fill(path);
-
       this.ctx.globalAlpha = 1.0;
     }
   }

@@ -1,4 +1,5 @@
 import { getStroke } from "perfect-freehand";
+import RBush from "rbush";
 import type {
   Project,
   Stroke,
@@ -7,8 +8,13 @@ import type {
   Camera,
   Coordinate,
   LibraryItem,
+  SpatialItem,
 } from "../shared/types";
-import { PEN_PRESETS, DUPLICATE_OFFSET_PX } from "./State-const";
+import {
+  PEN_PRESETS,
+  DUPLICATE_OFFSET_PX,
+  ERASER_HITBOX_PADDING,
+} from "./State-const";
 import { HistoryManager } from "./HistoryManager";
 import {
   getSelectionBounds,
@@ -65,6 +71,10 @@ export class State {
   // Кэш для непрерывного перетаскивания (Move / Scale)
   private dragBeforeState: Stroke[] | null = null;
 
+  // --- ПРОСТРАНСТВЕННЫЙ ИНДЕКС (R-Tree) ---
+  public spatialIndex = new RBush<SpatialItem>(9);
+  private spatialMap = new Map<string, SpatialItem>();
+
   public subscribeUI(fn: () => void) {
     this.uiListeners.push(fn);
     return () => {
@@ -86,11 +96,67 @@ export class State {
     this.isDirty = true;
   }
 
+  // --- УПРАВЛЕНИЕ ИНДЕКСОМ ---
+
+  private ensureBounds(stroke: Stroke) {
+    if (!stroke.bounds) {
+      stroke.bounds = getSelectionBounds([stroke]) || {
+        minX: 0,
+        minY: 0,
+        maxX: 0,
+        maxY: 0,
+      };
+    }
+    return stroke.bounds;
+  }
+
+  private addStrokeToIndex(stroke: Stroke) {
+    const b = this.ensureBounds(stroke);
+    const item: SpatialItem = {
+      minX: b.minX,
+      minY: b.minY,
+      maxX: b.maxX,
+      maxY: b.maxY,
+      stroke,
+    };
+    this.spatialIndex.insert(item);
+    this.spatialMap.set(stroke.id, item);
+  }
+
+  private removeStrokeFromIndex(stroke: Stroke) {
+    const item = this.spatialMap.get(stroke.id);
+    if (item) {
+      this.spatialIndex.remove(item);
+      this.spatialMap.delete(stroke.id);
+    }
+  }
+
+  private rebuildSpatialIndex() {
+    this.spatialIndex.clear();
+    this.spatialMap.clear();
+
+    const items: SpatialItem[] = [];
+    for (const stroke of this.strokes) {
+      const b = this.ensureBounds(stroke);
+      const item = {
+        minX: b.minX,
+        minY: b.minY,
+        maxX: b.maxX,
+        maxY: b.maxY,
+        stroke,
+      };
+      items.push(item);
+      this.spatialMap.set(stroke.id, item);
+    }
+    this.spatialIndex.load(items);
+  }
+
   public undo() {
     const prevState = this.historyManager.undo(this.strokes);
     if (prevState) {
       this.strokes = prevState;
       this.selectedStrokes.clear();
+      this.rebuildSpatialIndex();
       this.markDirty();
       this.onUpdate();
       this.triggerUIUpdate();
@@ -102,13 +168,13 @@ export class State {
     if (nextState) {
       this.strokes = nextState;
       this.selectedStrokes.clear();
+      this.rebuildSpatialIndex();
       this.markDirty();
       this.onUpdate();
       this.triggerUIUpdate();
     }
   }
 
-  // Для моментальных действий по клику кнопки (Отражение, Цвет и т.д.)
   private executeUpdate(updateFn: () => void) {
     if (this.selectedStrokes.size === 0) return;
     const before = structuredClone(Array.from(this.selectedStrokes));
@@ -120,7 +186,6 @@ export class State {
     this.triggerUIUpdate();
   }
 
-  // НОВОЕ: Для непрерывного перетаскивания (Start -> Move... -> Commit)
   public startContinuousUpdate() {
     if (this.selectedStrokes.size === 0) return;
     this.dragBeforeState = structuredClone(Array.from(this.selectedStrokes));
@@ -156,6 +221,7 @@ export class State {
         color: this.currentColor,
         pen: { ...this.currentPen },
         outlinePolygon,
+        _pathDirty: true,
       };
 
       this.strokes.push(newStroke);
@@ -166,14 +232,29 @@ export class State {
         strokes: [structuredClone(newStroke)],
       });
 
+      this.addStrokeToIndex(newStroke);
+
       this.markDirty();
       this.onUpdate();
     }
   }
 
   public handleEraser(p1: Point, p2: Point) {
+    const padding = ERASER_HITBOX_PADDING / this.camera.zoom;
+
+    const eraserBounds = {
+      minX: Math.min(p1.x, p2.x) - padding,
+      minY: Math.min(p1.y, p2.y) - padding,
+      maxX: Math.max(p1.x, p2.x) + padding,
+      maxY: Math.max(p1.y, p2.y) + padding,
+    };
+
+    const candidates = this.spatialIndex
+      .search(eraserBounds)
+      .map((item) => item.stroke);
+
     let found = false;
-    for (const stroke of this.strokes) {
+    for (const stroke of candidates) {
       if (this.erasingStrokes.has(stroke)) continue;
 
       if (isEraserIntersectingStroke(p1, p2, stroke, this.camera.zoom)) {
@@ -201,6 +282,8 @@ export class State {
         action: "DELETE",
         strokes: structuredClone(erasedArr),
       });
+
+      for (const s of erasedArr) this.removeStrokeFromIndex(s);
 
       this.strokes = this.strokes.filter((s) => !this.erasingStrokes.has(s));
       this.erasingStrokes.clear();
@@ -252,6 +335,21 @@ export class State {
       return;
     }
 
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    for (const p of this.lassoPath) {
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    }
+
+    const candidates = this.spatialIndex
+      .search({ minX, minY, maxX, maxY })
+      .map((i) => i.stroke);
+
     const groupMap = new Map<string, Stroke[]>();
     for (const stroke of this.strokes) {
       if (stroke.groupIds && stroke.groupIds.length > 0) {
@@ -264,7 +362,7 @@ export class State {
     const initiallySelected = new Set<Stroke>();
     const processedGroups = new Set<string>();
 
-    for (const stroke of this.strokes) {
+    for (const stroke of candidates) {
       if (initiallySelected.has(stroke)) continue;
 
       let intersects = false;
@@ -306,6 +404,8 @@ export class State {
       strokes: structuredClone(Array.from(this.selectedStrokes)),
     });
 
+    for (const s of this.selectedStrokes) this.removeStrokeFromIndex(s);
+
     this.strokes = this.strokes.filter((s) => !this.selectedStrokes.has(s));
     this.selectedStrokes.clear();
     this.markDirty();
@@ -320,31 +420,41 @@ export class State {
     });
   }
 
-  // ИСПРАВЛЕНИЕ: Убрали executeUpdate (чтобы не жрало память 60 раз в секунду)
   public moveSelected(dx: number, dy: number) {
     for (const stroke of this.selectedStrokes) {
+      this.removeStrokeFromIndex(stroke);
+
       stroke.bounds = undefined;
       stroke.outlinePolygon = undefined;
+      stroke._pathDirty = true;
+
       for (const p of stroke.points) {
         p.x = round1(p.x + dx);
         p.y = round1(p.y + dy);
       }
+
+      this.addStrokeToIndex(stroke);
     }
     this.markDirty();
     this.onUpdate();
     this.triggerUIUpdate();
   }
 
-  // ИСПРАВЛЕНИЕ: Убрали executeUpdate
   public scaleSelected(scale: number, origin: Coordinate) {
     for (const stroke of this.selectedStrokes) {
+      this.removeStrokeFromIndex(stroke);
+
       stroke.bounds = undefined;
       stroke.outlinePolygon = undefined;
+      stroke._pathDirty = true;
+
       for (const p of stroke.points) {
         p.x = round1(origin.x + (p.x - origin.x) * scale);
         p.y = round1(origin.y + (p.y - origin.y) * scale);
       }
       stroke.pen.size = round1(stroke.pen.size * scale);
+
+      this.addStrokeToIndex(stroke);
     }
     this.markDirty();
     this.onUpdate();
@@ -407,6 +517,7 @@ export class State {
       newStroke.id = this.generateId();
       newStroke.bounds = undefined;
       newStroke.outlinePolygon = undefined;
+      newStroke._pathDirty = true;
 
       if (newStroke.groupIds) {
         newStroke.groupIds = newStroke.groupIds.map((gid) => {
@@ -425,6 +536,7 @@ export class State {
       this.strokes.push(newStroke);
       newSelected.add(newStroke);
       newStrokesList.push(newStroke);
+      this.addStrokeToIndex(newStroke);
     }
 
     this.historyManager.push({
@@ -449,8 +561,11 @@ export class State {
 
     this.executeUpdate(() => {
       for (const stroke of this.selectedStrokes) {
+        this.removeStrokeFromIndex(stroke);
+
         stroke.bounds = undefined;
         stroke.outlinePolygon = undefined;
+        stroke._pathDirty = true;
 
         for (const p of stroke.points) {
           if (direction === "horizontal") {
@@ -459,6 +574,8 @@ export class State {
             p.y = round1(2 * cy - p.y);
           }
         }
+
+        this.addStrokeToIndex(stroke);
       }
     });
   }
@@ -468,9 +585,9 @@ export class State {
       this.currentProjectId = project.id;
       this.currentProjectName = project.name;
 
-      // ИСПРАВЛЕНИЕ: Добавляем ID старым проектам при загрузке, чтобы не ломалась история!
       this.strokes = (project.strokes || []).map((stroke) => {
         if (!stroke.id) stroke.id = this.generateId();
+        stroke._pathDirty = true;
         return stroke;
       });
 
@@ -502,6 +619,8 @@ export class State {
       this.pens[0] = structuredClone(PEN_PRESETS[0]);
       this.historyManager.clear();
     }
+
+    this.rebuildSpatialIndex();
 
     this.selectedStrokes.clear();
     this.lassoPath = [];
@@ -554,6 +673,7 @@ export class State {
     for (const s of newStrokes) {
       s.id = this.generateId();
       s.bounds = undefined;
+      s._pathDirty = true;
       if (!s.groupIds) s.groupIds = [];
       s.groupIds.push(newGroupId);
       for (const p of s.points) {
@@ -561,6 +681,7 @@ export class State {
         p.y = round1(p.y + dy);
       }
       this.strokes.push(s);
+      this.addStrokeToIndex(s);
     }
 
     this.selectedStrokes = new Set(newStrokes);
