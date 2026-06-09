@@ -77,16 +77,16 @@ export class Render {
     this.drawLassoPath();
   };
 
+  // В src/canvas/Render.ts найдите метод drawAllStrokes() и обновите цикл отрисовки:
+
   private drawAllStrokes() {
     const { camera, spatialIndex } = this.state;
 
-    // 1. Границы видимости камеры (View Frustum)
     const vpMinX = -camera.x / camera.zoom;
     const vpMinY = -camera.y / camera.zoom;
     const vpMaxX = (window.innerWidth - camera.x) / camera.zoom;
     const vpMaxY = (window.innerHeight - camera.y) / camera.zoom;
 
-    // 2. Получаем видимые штрихи за O(log N)
     const visibleItems = spatialIndex.search({
       minX: vpMinX,
       minY: vpMinY,
@@ -95,20 +95,19 @@ export class Render {
     });
 
     const visibleIds = new Set(visibleItems.map((item) => item.stroke.id));
-
-    // ОПТИМИЗАЦИЯ GPU: LOD (Уровень детализации)
-    // Если зум меньше 30%, сложные полигоны рисовать нет смысла — рисуем базовые линии
     const useLOD = camera.zoom < 0.5;
 
-    for (const stroke of this.state.strokes) {
-      if (!visibleIds.has(stroke.id)) continue;
+    // ИСПРАВЛЕНИЕ: Итерируемся по массиву strokeOrder, чтобы сохранить Z-index
+    for (const strokeId of this.state.strokeOrder) {
+      if (!visibleIds.has(strokeId)) continue; // Жесткий Culling
+
+      const stroke = this.state.strokes.get(strokeId);
+      if (!stroke) continue;
 
       let path = this.pathCache.get(stroke);
       let simplePath = this.simplePathCache.get(stroke);
 
-      // Генерируем кэш, если его нет ИЛИ если геометрия изменилась
       if (!path || !simplePath || stroke._pathDirty) {
-        // --- 1. Детальный полигон (perfect-freehand) ---
         const outlinePoints = getStroke(stroke.points, {
           ...stroke.pen,
           simulatePressure: false,
@@ -116,7 +115,6 @@ export class Render {
         path = new Path2D(getSvgPathFromStroke(outlinePoints));
         this.pathCache.set(stroke, path);
 
-        // --- 2. Упрощенная линия (LOD Cache) ---
         simplePath = new Path2D();
         if (stroke.points.length > 0) {
           simplePath.moveTo(stroke.points[0].x, stroke.points[0].y);
@@ -125,11 +123,9 @@ export class Render {
           }
         }
         this.simplePathCache.set(stroke, simplePath);
-
         stroke._pathDirty = false;
       }
 
-      // Применяем стили прозрачности
       if (this.state.erasingStrokes.has(stroke)) {
         this.ctx.globalAlpha = 0.3;
       } else if (stroke.pen.isMarker) {
@@ -138,16 +134,13 @@ export class Render {
         this.ctx.globalAlpha = 1.0;
       }
 
-      // Выбор режима отрисовки
       if (useLOD) {
-        // Рендер сверхбыстрой простой линии
         this.ctx.strokeStyle = stroke.color;
         this.ctx.lineWidth = stroke.pen.size;
         this.ctx.lineCap = "round";
         this.ctx.lineJoin = "round";
         this.ctx.stroke(simplePath);
       } else {
-        // Рендер детального полигона
         this.ctx.fillStyle = stroke.color;
         this.ctx.fill(path);
       }
@@ -155,7 +148,6 @@ export class Render {
 
     this.ctx.globalAlpha = 1.0;
 
-    // Текущая (живая) линия всегда рисуется детально, т.к. она одна
     if (this.state.currentStroke.length > 0) {
       this.ctx.fillStyle = this.state.currentColor;
       if (this.state.currentPen.isMarker) this.ctx.globalAlpha = 0.4;

@@ -1,3 +1,4 @@
+// src/core/State.ts
 import { getStroke } from "perfect-freehand";
 import RBush from "rbush";
 import type {
@@ -29,10 +30,12 @@ export class State {
   public currentProjectName: string = "Новый холст";
   public isDirty: boolean = false;
 
-  public strokes: Stroke[] = [];
+  // ИСПРАВЛЕНИЕ: Нормализованный стейт
+  public strokes: Map<string, Stroke> = new Map();
+  public strokeOrder: string[] = []; // Хранит Z-index
+
   public currentStroke: Point[] = [];
   public erasingStrokes: Set<Stroke> = new Set();
-
   public selectedStrokes: Set<Stroke> = new Set();
   public lassoPath: Point[] = [];
   public selectionMode: "move" | "scale" = "move";
@@ -48,7 +51,6 @@ export class State {
   public invertColors: boolean = false;
 
   private uiUpdatePending = false;
-
   public colors: string[] = [
     "#ef4444",
     "#3b82f6",
@@ -64,14 +66,10 @@ export class State {
   public currentPen: PenOptions = this.pens[0];
 
   private historyManager = new HistoryManager();
-
   public onUpdate: () => void = () => {};
   private uiListeners: (() => void)[] = [];
-
-  // Кэш для непрерывного перетаскивания (Move / Scale)
   private dragBeforeState: Stroke[] | null = null;
 
-  // --- ПРОСТРАНСТВЕННЫЙ ИНДЕКС (R-Tree) ---
   public spatialIndex = new RBush<SpatialItem>(9);
   private spatialMap = new Map<string, SpatialItem>();
 
@@ -96,7 +94,7 @@ export class State {
     this.isDirty = true;
   }
 
-  // --- УПРАВЛЕНИЕ ИНДЕКСОМ ---
+  // --- УПРАВЛЕНИЕ ИНДЕКСОМ И НОРМАЛИЗОВАННЫМ СТЕЙТОМ ---
 
   private ensureBounds(stroke: Stroke) {
     if (!stroke.bounds) {
@@ -136,27 +134,45 @@ export class State {
     this.spatialMap.clear();
 
     const items: SpatialItem[] = [];
-    for (const stroke of this.strokes) {
-      const b = this.ensureBounds(stroke);
-      const item = {
-        minX: b.minX,
-        minY: b.minY,
-        maxX: b.maxX,
-        maxY: b.maxY,
-        stroke,
-      };
-      items.push(item);
-      this.spatialMap.set(stroke.id, item);
+    for (const id of this.strokeOrder) {
+      const stroke = this.strokes.get(id);
+      if (stroke) {
+        const b = this.ensureBounds(stroke);
+        const item = {
+          minX: b.minX,
+          minY: b.minY,
+          maxX: b.maxX,
+          maxY: b.maxY,
+          stroke,
+        };
+        items.push(item);
+        this.spatialMap.set(stroke.id, item);
+      }
     }
     this.spatialIndex.load(items);
   }
 
+  // ИСПРАВЛЕНИЕ: Синхронизация нормализованного стейта из плоского массива (для History/Load)
+  private setStrokesFromList(strokesList: Stroke[]) {
+    this.strokes.clear();
+    this.strokeOrder = [];
+    for (const stroke of strokesList) {
+      this.strokes.set(stroke.id, stroke);
+      this.strokeOrder.push(stroke.id);
+    }
+    this.rebuildSpatialIndex();
+  }
+
+  // Для передачи плоского списка обратно в History/Exporter
+  public getStrokesList(): Stroke[] {
+    return this.strokeOrder.map((id) => this.strokes.get(id)!).filter(Boolean);
+  }
+
   public undo() {
-    const prevState = this.historyManager.undo(this.strokes);
+    const prevState = this.historyManager.undo(this.getStrokesList());
     if (prevState) {
-      this.strokes = prevState;
+      this.setStrokesFromList(prevState);
       this.selectedStrokes.clear();
-      this.rebuildSpatialIndex();
       this.markDirty();
       this.onUpdate();
       this.triggerUIUpdate();
@@ -164,11 +180,10 @@ export class State {
   }
 
   public redo() {
-    const nextState = this.historyManager.redo(this.strokes);
+    const nextState = this.historyManager.redo(this.getStrokesList());
     if (nextState) {
-      this.strokes = nextState;
+      this.setStrokesFromList(nextState);
       this.selectedStrokes.clear();
-      this.rebuildSpatialIndex();
       this.markDirty();
       this.onUpdate();
       this.triggerUIUpdate();
@@ -224,16 +239,16 @@ export class State {
         _pathDirty: true,
       };
 
-      this.strokes.push(newStroke);
-      this.currentStroke = [];
+      // ИСПРАВЛЕНИЕ: Добавление в Map и Order
+      this.strokes.set(newStroke.id, newStroke);
+      this.strokeOrder.push(newStroke.id);
 
+      this.currentStroke = [];
       this.historyManager.push({
         action: "ADD",
         strokes: [structuredClone(newStroke)],
       });
-
       this.addStrokeToIndex(newStroke);
-
       this.markDirty();
       this.onUpdate();
     }
@@ -241,7 +256,6 @@ export class State {
 
   public handleEraser(p1: Point, p2: Point) {
     const padding = ERASER_HITBOX_PADDING / this.camera.zoom;
-
     const eraserBounds = {
       minX: Math.min(p1.x, p2.x) - padding,
       minY: Math.min(p1.y, p2.y) - padding,
@@ -260,7 +274,10 @@ export class State {
       if (isEraserIntersectingStroke(p1, p2, stroke, this.camera.zoom)) {
         if (stroke.groupIds && stroke.groupIds.length > 0) {
           const topGroup = stroke.groupIds[stroke.groupIds.length - 1];
-          for (const s of this.strokes) {
+          // ИСПРАВЛЕНИЕ: Оптимизированный поиск групп, хотя тут мы все еще итерируем Order,
+          // но это можно вынести в отдельный GroupMap
+          for (const id of this.strokeOrder) {
+            const s = this.strokes.get(id)!;
             if (s.groupIds && s.groupIds.includes(topGroup)) {
               this.erasingStrokes.add(s);
             }
@@ -277,15 +294,21 @@ export class State {
   public commitEraser() {
     if (this.erasingStrokes.size > 0) {
       const erasedArr = Array.from(this.erasingStrokes);
-
       this.historyManager.push({
         action: "DELETE",
         strokes: structuredClone(erasedArr),
       });
 
-      for (const s of erasedArr) this.removeStrokeFromIndex(s);
+      for (const s of erasedArr) {
+        this.removeStrokeFromIndex(s);
+        // ИСПРАВЛЕНИЕ: Удаление за O(1) из Map
+        this.strokes.delete(s.id);
+      }
 
-      this.strokes = this.strokes.filter((s) => !this.erasingStrokes.has(s));
+      // Удаляем из Order
+      const erasedIds = new Set(erasedArr.map((s) => s.id));
+      this.strokeOrder = this.strokeOrder.filter((id) => !erasedIds.has(id));
+
       this.erasingStrokes.clear();
       this.markDirty();
       this.onUpdate();
@@ -349,9 +372,10 @@ export class State {
     const candidates = this.spatialIndex
       .search({ minX, minY, maxX, maxY })
       .map((i) => i.stroke);
-
     const groupMap = new Map<string, Stroke[]>();
-    for (const stroke of this.strokes) {
+
+    // ИСПРАВЛЕНИЕ: Итерация по Values
+    for (const stroke of this.strokes.values()) {
       if (stroke.groupIds && stroke.groupIds.length > 0) {
         const topGroup = stroke.groupIds[stroke.groupIds.length - 1];
         if (!groupMap.has(topGroup)) groupMap.set(topGroup, []);
@@ -404,9 +428,15 @@ export class State {
       strokes: structuredClone(Array.from(this.selectedStrokes)),
     });
 
-    for (const s of this.selectedStrokes) this.removeStrokeFromIndex(s);
+    const deletedIds = new Set<string>();
+    for (const s of this.selectedStrokes) {
+      this.removeStrokeFromIndex(s);
+      this.strokes.delete(s.id);
+      deletedIds.add(s.id);
+    }
 
-    this.strokes = this.strokes.filter((s) => !this.selectedStrokes.has(s));
+    this.strokeOrder = this.strokeOrder.filter((id) => !deletedIds.has(id));
+
     this.selectedStrokes.clear();
     this.markDirty();
     this.onUpdate();
@@ -494,7 +524,7 @@ export class State {
           topGroupsToUngroup.add(stroke.groupIds[stroke.groupIds.length - 1]);
         }
       }
-      for (const stroke of this.strokes) {
+      for (const stroke of this.strokes.values()) {
         if (stroke.groupIds && stroke.groupIds.length > 0) {
           const top = stroke.groupIds[stroke.groupIds.length - 1];
           if (topGroupsToUngroup.has(top)) stroke.groupIds.pop();
@@ -521,9 +551,7 @@ export class State {
 
       if (newStroke.groupIds) {
         newStroke.groupIds = newStroke.groupIds.map((gid) => {
-          if (!groupMap.has(gid)) {
-            groupMap.set(gid, this.generateId());
-          }
+          if (!groupMap.has(gid)) groupMap.set(gid, this.generateId());
           return groupMap.get(gid)!;
         });
       }
@@ -533,7 +561,8 @@ export class State {
         p.y = round1(p.y + offset);
       }
 
-      this.strokes.push(newStroke);
+      this.strokes.set(newStroke.id, newStroke);
+      this.strokeOrder.push(newStroke.id);
       newSelected.add(newStroke);
       newStrokesList.push(newStroke);
       this.addStrokeToIndex(newStroke);
@@ -543,7 +572,6 @@ export class State {
       action: "ADD",
       strokes: structuredClone(newStrokesList),
     });
-
     this.selectedStrokes = newSelected;
     this.selectionMode = "move";
     this.markDirty();
@@ -568,11 +596,8 @@ export class State {
         stroke._pathDirty = true;
 
         for (const p of stroke.points) {
-          if (direction === "horizontal") {
-            p.x = round1(2 * cx - p.x);
-          } else {
-            p.y = round1(2 * cy - p.y);
-          }
+          if (direction === "horizontal") p.x = round1(2 * cx - p.x);
+          else p.y = round1(2 * cy - p.y);
         }
 
         this.addStrokeToIndex(stroke);
@@ -581,16 +606,11 @@ export class State {
   }
 
   public loadProject(project: Project | null) {
+    let loadedStrokes: Stroke[] = [];
+
     if (project) {
       this.currentProjectId = project.id;
       this.currentProjectName = project.name;
-
-      this.strokes = (project.strokes || []).map((stroke) => {
-        if (!stroke.id) stroke.id = this.generateId();
-        stroke._pathDirty = true;
-        return stroke;
-      });
-
       this.backgroundColor = project.backgroundColor || "#000000";
       this.camera = project.camera || { x: 0, y: 0, zoom: 1 };
       this.selectionDragAnywhere = project.selectionDragAnywhere ?? true;
@@ -604,11 +624,16 @@ export class State {
         this.pens[0] = structuredClone(PEN_PRESETS[0]);
       }
       this.historyManager.load(project.history, project.redoHistory);
+
+      loadedStrokes = (project.strokes || []).map((stroke) => {
+        if (!stroke.id) stroke.id = this.generateId();
+        stroke._pathDirty = true;
+        return stroke;
+      });
     } else {
       this.currentProjectId = Date.now().toString();
       this.currentProjectName =
         "Новый проект " + new Date().toLocaleTimeString();
-      this.strokes = [];
       this.backgroundColor = "#000000";
       this.camera = { x: 0, y: 0, zoom: 1 };
       this.selectionDragAnywhere = true;
@@ -618,10 +643,10 @@ export class State {
       this.activeSizeIndex = 1;
       this.pens[0] = structuredClone(PEN_PRESETS[0]);
       this.historyManager.clear();
+      loadedStrokes = [];
     }
 
-    this.rebuildSpatialIndex();
-
+    this.setStrokesFromList(loadedStrokes);
     this.selectedStrokes.clear();
     this.lassoPath = [];
     this.isDirty = false;
@@ -643,7 +668,7 @@ export class State {
       penSizes: this.penSizes,
       redoHistory: includeHistory ? redoHistory : [],
       selectionDragAnywhere: this.selectionDragAnywhere,
-      strokes: this.strokes,
+      strokes: this.getStrokesList(), // ИСПРАВЛЕНИЕ: Конвертируем нормализованный стейт в массив
       thumbnail: "",
       updatedAt: Date.now(),
     };
@@ -680,7 +705,8 @@ export class State {
         p.x = round1(p.x + dx);
         p.y = round1(p.y + dy);
       }
-      this.strokes.push(s);
+      this.strokes.set(s.id, s);
+      this.strokeOrder.push(s.id);
       this.addStrokeToIndex(s);
     }
 
