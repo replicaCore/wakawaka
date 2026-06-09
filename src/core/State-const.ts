@@ -25,3 +25,7 @@ export const PEN_PRESETS: PenOptions[] = [
     isEraser: true,
   },
 ];
+
+export const ERASER_HITBOX_PADDING = 10;
+export const DUPLICATE_OFFSET_PX = 20;
+export const SELECTION_BOUNDS_PADDING = 5;

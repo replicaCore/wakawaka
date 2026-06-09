@@ -6,17 +6,17 @@ import type {
   PenOptions,
   Camera,
   Coordinate,
+  LibraryItem,
 } from "../shared/types";
-import { PEN_PRESETS } from "./State-const";
+import { PEN_PRESETS, DUPLICATE_OFFSET_PX } from "./State-const";
 import { HistoryManager } from "./HistoryManager";
-import type { LibraryItem } from "../shared/types";
 import {
   getSelectionBounds,
   pointInPolygon,
   isPointInBounds,
   isEraserIntersectingStroke,
 } from "./SelectionMath";
-import { isColorDark, round1 } from "../shared/utils";
+import { round1 } from "../shared/utils";
 
 export class State {
   public currentProjectId: string | null = null;
@@ -54,7 +54,7 @@ export class State {
 
   public penSizes: [number, number, number] = [4, 12, 24];
   public activeSizeIndex: number = 1;
-  public pens: PenOptions[] = JSON.parse(JSON.stringify(PEN_PRESETS));
+  public pens: PenOptions[] = structuredClone(PEN_PRESETS);
   public currentPen: PenOptions = this.pens[0];
 
   private historyManager = new HistoryManager();
@@ -62,9 +62,14 @@ export class State {
   public onUpdate: () => void = () => {};
   private uiListeners: (() => void)[] = [];
 
+  // ИСПРАВЛЕНИЕ: Возвращаем функцию отписки, чтобы предотвратить утечку памяти
   public subscribeUI(fn: () => void) {
     this.uiListeners.push(fn);
+    return () => {
+      this.uiListeners = this.uiListeners.filter((listener) => listener !== fn);
+    };
   }
+
   public triggerUIUpdate() {
     if (!this.uiUpdatePending) {
       this.uiUpdatePending = true;
@@ -74,11 +79,11 @@ export class State {
       });
     }
   }
+
   public markDirty() {
     this.isDirty = true;
   }
 
-  // --- ИСТОРИЯ ---
   public saveHistory() {
     this.historyManager.save(this.strokes);
   }
@@ -105,7 +110,6 @@ export class State {
     }
   }
 
-  // --- РИСОВАНИЕ И КИСТИ ---
   public addPoint(point: Point) {
     this.currentStroke.push(point);
     this.onUpdate();
@@ -152,10 +156,7 @@ export class State {
         found = true;
       }
     }
-
-    if (found) {
-      this.onUpdate();
-    }
+    if (found) this.onUpdate();
   }
 
   public commitEraser() {
@@ -179,21 +180,14 @@ export class State {
   public setColor(color: string) {
     this.currentColor = color;
 
-    if (isColorDark(this.backgroundColor)) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+    // ИСПРАВЛЕНИЕ: Логика document.documentElement.classList удалена отсюда в UI-слой
 
     if (this.selectedStrokes.size > 0) {
       this.saveHistory();
-      for (const stroke of this.selectedStrokes) {
-        stroke.color = color;
-      }
+      for (const stroke of this.selectedStrokes) stroke.color = color;
       this.markDirty();
       this.onUpdate();
     }
-
     this.triggerUIUpdate();
   }
 
@@ -207,7 +201,6 @@ export class State {
     }
   }
 
-  // --- ВЫДЕЛЕНИЕ (LASSO, ТРАНСФОРМАЦИИ) ---
   public getSelectionBounds() {
     return getSelectionBounds(this.selectedStrokes);
   }
@@ -217,45 +210,53 @@ export class State {
     return isPointInBounds(pt, bounds);
   }
 
+  // ОПТИМИЗАЦИЯ: Исправлен тяжелый цикл O(N^2)
   public updateLassoSelection() {
     if (this.lassoPath.length < 3) {
       this.selectedStrokes.clear();
       return;
     }
-    const initiallySelected = new Set<Stroke>();
+
+    // 1. Предварительно создаем Map для быстрого доступа к группам O(1)
+    const groupMap = new Map<string, Stroke[]>();
     for (const stroke of this.strokes) {
+      if (stroke.groupIds && stroke.groupIds.length > 0) {
+        const topGroup = stroke.groupIds[stroke.groupIds.length - 1];
+        if (!groupMap.has(topGroup)) groupMap.set(topGroup, []);
+        groupMap.get(topGroup)!.push(stroke);
+      }
+    }
+
+    const initiallySelected = new Set<Stroke>();
+    const processedGroups = new Set<string>();
+
+    // 2. Проходим по всем штрихам ровно один раз
+    for (const stroke of this.strokes) {
+      if (initiallySelected.has(stroke)) continue;
+
+      let intersects = false;
       for (const p of stroke.points) {
         if (pointInPolygon(p, this.lassoPath)) {
-          initiallySelected.add(stroke);
+          intersects = true;
           break;
         }
       }
-    }
-    let expanded = true;
-    while (expanded) {
-      expanded = false;
-      const currentTopGroups = new Set<string>();
-      for (const stroke of initiallySelected) {
+
+      if (intersects) {
         if (stroke.groupIds && stroke.groupIds.length > 0) {
-          currentTopGroups.add(stroke.groupIds[stroke.groupIds.length - 1]);
-        }
-      }
-      if (currentTopGroups.size > 0) {
-        for (const stroke of this.strokes) {
-          if (
-            !initiallySelected.has(stroke) &&
-            stroke.groupIds &&
-            stroke.groupIds.length > 0
-          ) {
-            const topGroup = stroke.groupIds[stroke.groupIds.length - 1];
-            if (currentTopGroups.has(topGroup)) {
-              initiallySelected.add(stroke);
-              expanded = true;
-            }
+          const topGroup = stroke.groupIds[stroke.groupIds.length - 1];
+          // Если группа еще не добавлена, добавляем сразу все элементы из неё
+          if (!processedGroups.has(topGroup)) {
+            processedGroups.add(topGroup);
+            const groupStrokes = groupMap.get(topGroup) || [];
+            for (const s of groupStrokes) initiallySelected.add(s);
           }
+        } else {
+          initiallySelected.add(stroke); // Если штрих без группы
         }
       }
     }
+
     this.selectedStrokes = initiallySelected;
   }
 
@@ -278,9 +279,7 @@ export class State {
   public changeSelectionColor() {
     if (this.selectedStrokes.size === 0) return;
     this.saveHistory();
-    for (const stroke of this.selectedStrokes) {
-      stroke.color = this.currentColor;
-    }
+    for (const stroke of this.selectedStrokes) stroke.color = this.currentColor;
     this.markDirty();
     this.onUpdate();
   }
@@ -316,7 +315,6 @@ export class State {
 
   public groupSelected() {
     if (this.selectedStrokes.size < 2) return;
-
     const topLevelEntities = new Set<string>();
     let ungroupedCount = 0;
     for (const stroke of this.selectedStrokes) {
@@ -363,12 +361,12 @@ export class State {
     if (this.selectedStrokes.size === 0) return;
     this.saveHistory();
 
-    const offset = 20 / this.camera.zoom;
+    const offset = DUPLICATE_OFFSET_PX / this.camera.zoom;
     const newSelected = new Set<Stroke>();
     const groupMap = new Map<string, string>();
 
     for (const stroke of this.selectedStrokes) {
-      const newStroke: Stroke = JSON.parse(JSON.stringify(stroke));
+      const newStroke: Stroke = structuredClone(stroke); // Оптимизация
       newStroke.bounds = undefined;
       newStroke.outlinePolygon = undefined;
 
@@ -391,31 +389,31 @@ export class State {
     }
 
     this.selectedStrokes = newSelected;
-    this.selectionMode = "move"; // Автоматически переключаем в режим перемещения копий
+    this.selectionMode = "move";
     this.markDirty();
     this.onUpdate();
     this.triggerUIUpdate();
   }
 
-  // НОВОЕ: Отзеркаливание выделения
   public flipSelected(direction: "horizontal" | "vertical") {
     if (this.selectedStrokes.size === 0) return;
     const bounds = this.getSelectionBounds();
     if (!bounds) return;
 
     this.saveHistory();
-
-    // Находим точный центр выделенной области
     const cx = (bounds.minX + bounds.maxX) / 2;
     const cy = (bounds.minY + bounds.maxY) / 2;
 
     for (const stroke of this.selectedStrokes) {
+      // ИСПРАВЛЕНИЕ: Добавлен сброс кэша полигона (иначе ластик не работал бы)
       stroke.bounds = undefined;
+      stroke.outlinePolygon = undefined;
+
       for (const p of stroke.points) {
         if (direction === "horizontal") {
-          p.x = round1(2 * cx - p.x); // Отражаем по X относительно центра
+          p.x = round1(2 * cx - p.x);
         } else {
-          p.y = round1(2 * cy - p.y); // Отражаем по Y относительно центра
+          p.y = round1(2 * cy - p.y);
         }
       }
     }
@@ -425,7 +423,6 @@ export class State {
     this.triggerUIUpdate();
   }
 
-  // --- УПРАВЛЕНИЕ ПРОЕКТОМ ---
   public loadProject(project: Project | null) {
     if (project) {
       this.currentProjectId = project.id;
@@ -441,7 +438,7 @@ export class State {
         this.pens[0] = project.penOptions;
         this.pens[0].icon = "pen-tool";
       } else {
-        this.pens[0] = JSON.parse(JSON.stringify(PEN_PRESETS[0]));
+        this.pens[0] = structuredClone(PEN_PRESETS[0]);
       }
       this.historyManager.load(project.history, project.redoHistory);
     } else {
@@ -456,7 +453,7 @@ export class State {
       this.pens[0].icon = "pen-tool";
       this.penSizes = [4, 12, 24];
       this.activeSizeIndex = 1;
-      this.pens[0] = JSON.parse(JSON.stringify(PEN_PRESETS[0]));
+      this.pens[0] = structuredClone(PEN_PRESETS[0]);
       this.historyManager.clear();
     }
 
@@ -499,8 +496,8 @@ export class State {
     const dx = pt.x - cx;
     const dy = pt.y - cy;
 
-    const newStrokes: Stroke[] = JSON.parse(
-      JSON.stringify(this.spawningLibraryItem.strokes),
+    const newStrokes: Stroke[] = structuredClone(
+      this.spawningLibraryItem.strokes,
     );
     const newGroupId = Math.random().toString(36).substring(2, 10);
 
