@@ -7,6 +7,8 @@ export type Camera = { x: number; y: number; zoom: number };
 
 export type Stroke = {
   id: string;
+  type?: "text";
+  text?: string;
   points: Point[];
   color: string;
   pen: PenOptions;
@@ -42,6 +44,7 @@ export type Project = {
 export type PenOptions = {
   icon: string;
   size: number;
+  isText?: boolean;
   thinning: number;
   smoothing: number;
   streamline: number;

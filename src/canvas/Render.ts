@@ -95,13 +95,31 @@ export class Render {
     const visibleIds = new Set(visibleItems.map((item) => item.stroke.id));
     const useLOD = camera.zoom < 0.3;
 
-    // ИСПРАВЛЕНИЕ: Итерируемся по массиву strokeOrder, чтобы сохранить Z-index
     for (const strokeId of this.state.strokeOrder) {
-      if (!visibleIds.has(strokeId)) continue; // Жесткий Culling
+      if (!visibleIds.has(strokeId)) continue;
 
       const stroke = this.state.strokes.get(strokeId);
       if (!stroke) continue;
 
+      // 🔴 Рендер текста
+      if (stroke.type === "text" && stroke.text) {
+        this.ctx.globalAlpha = 1.0;
+        this.ctx.font = `${stroke.pen.size}px Arial`;
+        this.ctx.fillStyle = stroke.color;
+        this.ctx.textBaseline = "top";
+
+        const lines = stroke.text.split("\n");
+        let currentY = stroke.points[0].y;
+        const lineHeight = stroke.pen.size * 1.2;
+
+        for (const line of lines) {
+          this.ctx.fillText(line, stroke.points[0].x, currentY);
+          currentY += lineHeight;
+        }
+        continue; // Пропускаем логику путей для текста
+      }
+
+      // 🔴 Рендер обычных линий
       let path = this.pathCache.get(stroke);
       let simplePath = this.simplePathCache.get(stroke);
 

@@ -24,6 +24,14 @@ export const PEN_PRESETS: PenOptions[] = [
     streamline: 0.5,
     isEraser: true,
   },
+  {
+    icon: "type-outline",
+    size: 24,
+    thinning: 0,
+    smoothing: 0,
+    streamline: 0,
+    isText: true,
+  },
 ];
 
 export const ERASER_HITBOX_PADDING = 10;

@@ -24,6 +24,8 @@ export class InputHandler {
   private lastPinchCenter: Coordinate | null = null;
   private activePenId: number | null = null;
 
+  private activeTextInput: HTMLTextAreaElement | null = null;
+
   constructor(canvas: HTMLCanvasElement, state: State) {
     this.canvas = canvas;
     this.state = state;
@@ -52,6 +54,11 @@ export class InputHandler {
     this.canvas.addEventListener("wheel", this.handleWheel, { passive: false });
 
     document.addEventListener("keydown", (e) => {
+      if (
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLInputElement
+      )
+        return;
       if (e.code === "Space" && !this.isSpacePressed) {
         this.isSpacePressed = true;
         this.canvas.style.cursor = "grab";
@@ -59,11 +66,75 @@ export class InputHandler {
     });
 
     document.addEventListener("keyup", (e) => {
+      if (
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLInputElement
+      )
+        return;
       if (e.code === "Space") {
         this.isSpacePressed = false;
         this.canvas.style.cursor = "grab";
       }
     });
+  }
+
+  private createTextElement(
+    clientX: number,
+    clientY: number,
+    worldPt: Coordinate,
+  ) {
+    const input = document.createElement("textarea");
+    this.activeTextInput = input;
+
+    const visualSize = this.state.currentPen.size * this.state.camera.zoom;
+
+    input.style.position = "absolute";
+    input.style.left = `${clientX}px`;
+    input.style.top = `${clientY}px`;
+    input.style.fontSize = `${visualSize}px`;
+    input.style.fontFamily = "Arial";
+    input.style.color = this.state.currentColor;
+    input.style.background = "transparent";
+    input.style.border = "2px dashed #3b82f6";
+    input.style.outline = "none";
+    input.style.padding = "2px";
+    input.style.margin = "0";
+    input.style.lineHeight = "1.2";
+    input.style.resize = "none";
+    input.style.overflow = "hidden";
+    input.style.whiteSpace = "pre";
+    input.style.zIndex = "1000";
+    input.style.minWidth = `${visualSize * 3}px`;
+    input.style.minHeight = `${visualSize * 1.5}px`;
+
+    const autoResize = () => {
+      input.style.width = "auto";
+      input.style.height = "auto";
+      input.style.width = input.scrollWidth + 4 + "px";
+      input.style.height = input.scrollHeight + 4 + "px";
+    };
+    input.addEventListener("input", autoResize);
+
+    document.body.appendChild(input);
+
+    // ✅ ВАЖНО: ЗАДЕРЖКА ФОКУСА!
+    // Без неё Canvas крадет фокус обратно, и поле ввода мгновенно исчезает.
+    setTimeout(() => {
+      input.focus();
+    }, 10);
+
+    const commit = () => {
+      if (this.activeTextInput === input) this.activeTextInput = null;
+      const text = input.value.trim();
+      if (text) {
+        const width = input.offsetWidth / this.state.camera.zoom;
+        const height = input.offsetHeight / this.state.camera.zoom;
+        this.state.addText(text, worldPt.x, worldPt.y, width, height);
+      }
+      input.remove();
+    };
+
+    input.addEventListener("blur", commit);
   }
 
   private handlePointerDown = (e: PointerEvent) => {
@@ -79,6 +150,7 @@ export class InputHandler {
     this.pointers.set(e.pointerId, e);
 
     if (this.pointers.size === 2) {
+      if (this.activeTextInput) this.activeTextInput.blur(); // Закрываем текст
       const pts = Array.from(this.pointers.values());
       this.lastPinchDist = Math.hypot(
         pts[0].clientX - pts[1].clientX,
@@ -101,6 +173,7 @@ export class InputHandler {
     if (this.pointers.size > 2) return;
 
     if (e.button === 1 || this.isSpacePressed) {
+      if (this.activeTextInput) this.activeTextInput.blur(); // Закрываем текст
       this.isPanning = true;
       this.lastPanPoint = { x: e.clientX, y: e.clientY };
       if (this.isSpacePressed) this.canvas.style.cursor = "grabbing";
@@ -110,6 +183,16 @@ export class InputHandler {
     if (e.pointerType === "touch") return;
 
     const worldPt = this.getScreenToWorld(e.clientX, e.clientY);
+
+    // ✅ ТЕКСТОВЫЙ ИНСТРУМЕНТ
+    if (this.state.currentPen.isText) {
+      if (this.activeTextInput) {
+        this.activeTextInput.blur();
+        return; // ✅ ВАЖНО: Если мы закрыли текст кликом, НЕ создаем сразу второй!
+      }
+      this.createTextElement(e.clientX, e.clientY, worldPt);
+      return;
+    }
 
     if (this.state.currentPen.isEraser) {
       this.isDrawing = false;
@@ -256,7 +339,6 @@ export class InputHandler {
 
     if (this.isDraggingSelection) {
       if (!this.hasDragged) {
-        // ИСПРАВЛЕНИЕ: Вместо saveHistory используем старт непрерывного обновления
         this.state.startContinuousUpdate();
         this.hasDragged = true;
       }
@@ -339,7 +421,6 @@ export class InputHandler {
 
       if (this.isDraggingSelection) {
         this.isDraggingSelection = false;
-        // ИСПРАВЛЕНИЕ: Закрываем непрерывное обновление при отпускании мыши
         if (this.hasDragged) {
           this.state.commitContinuousUpdate();
         } else if (!this.state.isPointInSelectionBox(this.lastDragWorldPt)) {
@@ -387,7 +468,11 @@ export class InputHandler {
       return;
     }
 
-    if (e.pointerType !== "touch" && !this.state.currentPen.isSelector) {
+    if (
+      e.pointerType !== "touch" &&
+      !this.state.currentPen.isSelector &&
+      !this.state.currentPen.isText
+    ) {
       this.cursorCircle.classList.remove("hidden");
       const visualSize = this.state.currentPen.size * this.state.camera.zoom;
       this.cursorCircle.style.width = `${visualSize}px`;
@@ -398,6 +483,14 @@ export class InputHandler {
       }
     } else {
       this.cursorCircle.classList.add("hidden");
+    }
+
+    if (this.state.currentPen.isText) {
+      this.canvas.style.cursor = "text";
+    } else if (!this.state.currentPen.isSelector) {
+      this.canvas.style.cursor = "crosshair";
+    } else {
+      this.canvas.style.cursor = "default";
     }
   }
 }

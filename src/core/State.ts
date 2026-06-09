@@ -803,4 +803,42 @@ export class State {
       Math.random().toString(36).substring(2, 12) + Date.now().toString(36)
     );
   }
+
+  public addText(
+    text: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ) {
+    const newStroke: Stroke = {
+      id: this.generateId(),
+      type: "text",
+      text,
+      // 4 угла нужны, чтобы лассо без проблем захватывало текст
+      points: [
+        { x, y },
+        { x: x + width, y },
+        { x: x + width, y: y + height },
+        { x, y: y + height },
+      ],
+      color: this.currentColor,
+      pen: { ...this.currentPen },
+      _pathDirty: true,
+    };
+    newStroke.outlinePolygon = [...newStroke.points]; // Явный хитбокс для стерки
+
+    this.strokes.set(newStroke.id, newStroke);
+    this.strokeOrder.push(newStroke.id);
+    this.syncDeltas.set(newStroke.id, newStroke);
+
+    this.historyManager.push({
+      action: "ADD",
+      strokes: [structuredClone(newStroke)],
+    });
+
+    this.addStrokeToIndex(newStroke);
+    this.markDirty();
+    this.onUpdate();
+  }
 }

@@ -1,3 +1,4 @@
+// src/services/ExportImport.ts
 import { getStroke } from "perfect-freehand";
 import { getSvgPathFromStroke } from "../shared/utils";
 import type { Project, Stroke, Point } from "../shared/types";
@@ -9,16 +10,29 @@ function getProjectBounds(strokes: Stroke[]) {
     maxX = -Infinity,
     maxY = -Infinity;
   let hasPoints = false;
+
   for (const s of strokes) {
     const pad = s.pen.size;
-    for (const p of s.points) {
+
+    if (s.type === "text" && s.points.length >= 2) {
+      // Для текста используем границы прямоугольника
+      const [topLeft, bottomRight] = [s.points[0], s.points[2]];
       hasPoints = true;
-      if (p.x - pad < minX) minX = p.x - pad;
-      if (p.y - pad < minY) minY = p.y - pad;
-      if (p.x + pad > maxX) maxX = p.x + pad;
-      if (p.y + pad > maxY) maxY = p.y + pad;
+      if (topLeft.x - pad < minX) minX = topLeft.x - pad;
+      if (topLeft.y - pad < minY) minY = topLeft.y - pad;
+      if (bottomRight.x + pad > maxX) maxX = bottomRight.x + pad;
+      if (bottomRight.y + pad > maxY) maxY = bottomRight.y + pad;
+    } else {
+      for (const p of s.points) {
+        hasPoints = true;
+        if (p.x - pad < minX) minX = p.x - pad;
+        if (p.y - pad < minY) minY = p.y - pad;
+        if (p.x + pad > maxX) maxX = p.x + pad;
+        if (p.y + pad > maxY) maxY = p.y + pad;
+      }
     }
   }
+
   return hasPoints
     ? { minX, minY, maxX, maxY }
     : { minX: 0, minY: 0, maxX: 800, maxY: 600 };
@@ -52,6 +66,24 @@ export async function exportImage(project: Project, type: "png" | "jpg") {
 
   for (const stroke of project.strokes) {
     if (stroke.points.length === 0) continue;
+
+    // Обработка текстовых объектов
+    if (stroke.type === "text" && stroke.text) {
+      // ✅ ЗАМЕНИЛИ stroke.pen.textContent на stroke.text
+      ctx.globalAlpha = 1.0;
+      ctx.font = `${stroke.pen.size}px Arial`;
+      ctx.fillStyle = stroke.color;
+      ctx.textBaseline = "top";
+      const lines = stroke.text.split("\n"); // ✅ ЗАМЕНИЛИ
+      let currentY = stroke.points[0].y;
+      const lineHeight = stroke.pen.size * 1.2;
+      for (const line of lines) {
+        ctx.fillText(line, stroke.points[0].x, currentY);
+        currentY += lineHeight;
+      }
+      continue;
+    }
+
     ctx.globalAlpha = stroke.pen.isMarker ? 0.4 : 1.0;
     ctx.fillStyle = stroke.color;
     const outlinePoints = getStroke(stroke.points, stroke.pen);
@@ -80,6 +112,22 @@ export function exportSVG(project: Project) {
 
   for (const stroke of project.strokes) {
     if (stroke.points.length === 0) continue;
+
+    // Обработка текстовых объектов
+    if (stroke.type === "text" && stroke.text) {
+      // ✅ ЗАМЕНИЛИ
+      const lines = stroke.text.split("\n"); // ✅ ЗАМЕНИЛИ
+      const fontSize = stroke.pen.size;
+      const lineHeight = fontSize * 1.2;
+      svg += `<text x="${stroke.points[0].x}" y="${stroke.points[0].y}" font-family="Arial" font-size="${fontSize}px" fill="${stroke.color}" dominant-baseline="hanging">`;
+      lines.forEach((line, i) => {
+        const dy = i === 0 ? 0 : lineHeight;
+        svg += `<tspan x="${stroke.points[0].x}" dy="${dy}">${escapeXml(line)}</tspan>`;
+      });
+      svg += `</text>`;
+      continue;
+    }
+
     const outline = getStroke(stroke.points, stroke.pen);
     const d = getSvgPathFromStroke(outline);
     const alpha = stroke.pen.isMarker ? 0.4 : 1.0;
@@ -89,6 +137,15 @@ export function exportSVG(project: Project) {
 
   const blob = new Blob([svg], { type: "image/svg+xml" });
   downloadURL(URL.createObjectURL(blob), `${project.name}.svg`);
+}
+
+function escapeXml(unsafe: string): string {
+  return unsafe.replace(/[<>&]/g, function (m) {
+    if (m === "<") return "&lt;";
+    if (m === ">") return "&gt;";
+    if (m === "&") return "&amp;";
+    return m;
+  });
 }
 
 export function exportJSON(project: Project) {
@@ -126,8 +183,10 @@ export async function importFile(file: File): Promise<Project | null> {
 
     // Запасной план: парсинг сторонних SVG
     const paths = doc.querySelectorAll("path, polyline, polygon, line");
+    const texts = doc.querySelectorAll("text");
     const strokes: Stroke[] = [];
 
+    // Парсим пути
     const svgContainer = document.createElement("div");
     svgContainer.style.visibility = "hidden";
     svgContainer.style.position = "absolute";
@@ -146,22 +205,70 @@ export async function importFile(file: File): Promise<Project | null> {
           const len = clonedEl.getTotalLength();
           if (len > 0) {
             const points: Point[] = [];
-            // Выбираем точки по контуру пути
             for (let i = 0; i <= len; i += Math.max(1, len / 50)) {
               const pt = clonedEl.getPointAtLength(i);
               points.push({ x: pt.x, y: pt.y });
             }
             strokes.push({
+              id: Math.random().toString(36).substring(2, 12),
               points,
-              color:
-                el.getAttribute("fill") || el.getAttribute("stroke") || "#000",
-              pen: PEN_PRESETS[1], // Обычная кисть
+              color,
+              pen: {
+                ...PEN_PRESETS[1],
+                size: fontSize,
+                isText: true, // textContent удален отсюда
+              },
+              type: "text",
+              text: content, // ✅ ДОБАВИЛИ СЮДА (где он и должен быть)
+              _pathDirty: true,
             });
           }
         } catch (e) {}
         tempSvg.innerHTML = "";
       }
     });
+
+    // Парсим текстовые элементы
+    texts.forEach((el) => {
+      const x = parseFloat(el.getAttribute("x") || "0");
+      const y = parseFloat(el.getAttribute("y") || "0");
+      const fontSize = parseFloat(el.getAttribute("font-size") || "16");
+      const color = el.getAttribute("fill") || "#000";
+      const content = el.textContent || "";
+
+      // Создаем прямоугольник для текста
+      const tempCanvas = document.createElement("canvas");
+      const tempCtx = tempCanvas.getContext("2d");
+      if (tempCtx) {
+        tempCtx.font = `${fontSize}px Arial`;
+        const metrics = tempCtx.measureText(content);
+        const width = metrics.width;
+        const height = fontSize * 1.2 * content.split("\n").length;
+
+        const points: Point[] = [
+          { x, y },
+          { x: x + width, y },
+          { x: x + width, y: y + height },
+          { x, y: y + height },
+          { x, y },
+        ];
+
+        strokes.push({
+          id: Math.random().toString(36).substring(2, 12),
+          points,
+          color,
+          pen: {
+            ...PEN_PRESETS[1],
+            size: fontSize,
+            isText: true,
+            textContent: content,
+          },
+          type: "text",
+          _pathDirty: true,
+        });
+      }
+    });
+
     document.body.removeChild(svgContainer);
 
     return {
@@ -172,6 +279,10 @@ export async function importFile(file: File): Promise<Project | null> {
       strokes,
       backgroundColor: "#ffffff",
       camera: { x: 0, y: 0, zoom: 1 },
+      selectionDragAnywhere: true,
+      activeSizeIndex: 1,
+      penOptions: PEN_PRESETS[0],
+      penSizes: [4, 12, 24],
     };
   }
   return null;

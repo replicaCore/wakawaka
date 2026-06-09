@@ -49,7 +49,14 @@ export function getSelectionBounds(strokes: Set<Stroke> | Stroke[]) {
     }
 
     const padding = stroke.pen.size / 2 + SELECTION_BOUNDS_PADDING;
-    for (const p of stroke.points) {
+
+    // Для текстовых объектов используем точки напрямую
+    const pointsToCheck =
+      stroke.type === "text" && stroke.points.length === 4
+        ? [stroke.points[0], stroke.points[2]] // Используем только противоположные углы
+        : stroke.points;
+
+    for (const p of pointsToCheck) {
       hasPoints = true;
       if (p.x - padding < minX) minX = p.x - padding;
       if (p.y - padding < minY) minY = p.y - padding;
@@ -102,8 +109,8 @@ export function segmentsIntersect(
   const ub_t = AVx * ABy - AVy * ABx;
   const u_b = BVy * AVx - BVx * AVy;
 
-  if (Math.abs(ua_t) <= precision || Math.abs(ub_t) <= precision) return false; // Совпадают
-  if (Math.abs(u_b) <= precision) return false; // Параллельны
+  if (Math.abs(ua_t) <= precision || Math.abs(ub_t) <= precision) return false;
+  if (Math.abs(u_b) <= precision) return false;
 
   const ua = ua_t / u_b;
   const ub = ub_t / u_b;
@@ -130,11 +137,18 @@ export function isEraserIntersectingStroke(
 
   if (!stroke.outlinePolygon) {
     if (stroke.points.length === 0) return false;
-    const rawPolygon = getStroke(stroke.points, {
-      ...stroke.pen,
-      simulatePressure: false,
-    });
-    stroke.outlinePolygon = rawPolygon.map((pt) => ({ x: pt[0], y: pt[1] }));
+
+    // Обработка текстовых объектов
+    if (stroke.type === "text") {
+      // Для текста outlinePolygon - это прямоугольник границ
+      stroke.outlinePolygon = [...stroke.points];
+    } else {
+      const rawPolygon = getStroke(stroke.points, {
+        ...stroke.pen,
+        simulatePressure: false,
+      });
+      stroke.outlinePolygon = rawPolygon.map((pt) => ({ x: pt[0], y: pt[1] }));
+    }
   }
 
   const padding = ERASER_HITBOX_PADDING / zoom;
