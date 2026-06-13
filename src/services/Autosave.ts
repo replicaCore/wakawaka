@@ -50,12 +50,13 @@ export class AutosaveService {
 
     // 2. Собираем мета-данные проекта
     const projectData = this.state.getProjectData(false);
-    const meta = {
+
+    // ✅ ИСПРАВЛЕНИЕ ТИПОВ: Отделяем strokes через деструктуризацию
+    const { strokes, ...meta } = {
       ...projectData,
       thumbnail,
       updatedAt: Date.now(),
     };
-    delete meta.strokes; // Не передаем полные штрихи, только дельты
 
     // 3. Получаем дельты (измененные штрихи с момента последнего сохранения)
     const deltas = Array.from(this.state.syncDeltas.entries());

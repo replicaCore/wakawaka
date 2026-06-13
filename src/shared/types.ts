@@ -15,7 +15,7 @@ export type Stroke = {
   groupIds?: string[];
   bounds?: { minX: number; minY: number; maxX: number; maxY: number };
   outlinePolygon?: Point[];
-  _pathDirty?: boolean; // <-- НОВОЕ: Флаг инвалидации кэша отрисовки
+  _pathDirty?: boolean;
 };
 
 export type HistoryAction = "ADD" | "DELETE" | "UPDATE";
@@ -39,6 +39,7 @@ export type Project = {
   history?: HistoryStep[];
   redoHistory?: HistoryStep[];
   selectionDragAnywhere?: boolean;
+  colors?: any[]; // <--- ДОБАВЛЕНО: Сохранение палитры
 };
 
 export type PenOptions = {

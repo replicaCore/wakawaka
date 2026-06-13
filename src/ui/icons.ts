@@ -29,6 +29,8 @@ import {
   Undo,
   Unlink,
   X,
+  FolderPlus, // Иконка создания группы
+  RotateCcw, // Иконка сброса
   createIcons,
 } from "lucide";
 
@@ -65,6 +67,8 @@ export function refreshIcons() {
       Undo,
       Unlink,
       X,
+      FolderPlus,
+      RotateCcw,
     },
   });
 }

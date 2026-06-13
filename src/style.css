@@ -2,34 +2,6 @@
 
 /* palette focus  */
 
-.palette-btn {
-  position: relative;
-  overflow: hidden;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.palette-btn::after {
-  content: "";
-  position: absolute;
-  left: 26.5%;
-  bottom: -3%;
-  display: none;
-
-  border-width: 0 10px 16px 10px;
-  border-style: solid;
-  border-color: transparent transparent white transparent;
-
-  pointer-events: none;
-  mix-blend-mode: difference;
-  filter: invert(1);
-}
-
-.palette-btn.active-palette::after {
-  display: block;
-}
-
-/* opacity UI */
-
 #UI {
   transition: opacity 0.1s ease-in-out;
 }

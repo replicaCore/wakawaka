@@ -52,12 +52,15 @@ export class State {
   public invertColors: boolean = false;
 
   private uiUpdatePending = false;
-  public colors: string[] = [
+
+  // --- ИЗМЕНЕНИЕ ---
+  // Согласовали дефолтные цвета с ColorsTab
+  public colors: any[] = [
+    "#000000",
     "#ef4444",
+    "#22c55e",
     "#3b82f6",
-    "#10b981",
-    "#f59e0b",
-    "#8b5cf6",
+    "#eab308",
   ];
   public currentColor: string = this.colors[0];
 
@@ -695,6 +698,14 @@ export class State {
 
       this.penSizes = project.penSizes || [4, 12, 24];
       this.activeSizeIndex = project.activeSizeIndex ?? 1;
+
+      // --- ИЗМЕНЕНИЕ: Загружаем сохраненную палитру проекта ---
+      if (project.colors && project.colors.length > 0) {
+        this.colors = structuredClone(project.colors);
+      } else {
+        this.colors = ["#000000", "#ef4444", "#22c55e", "#3b82f6", "#eab308"];
+      }
+
       if (project.penOptions) {
         this.pens[0] = project.penOptions;
         this.pens[0].icon = "pen-tool";
@@ -715,6 +726,9 @@ export class State {
       this.backgroundColor = "#000000";
       this.camera = { x: 0, y: 0, zoom: 1 };
       this.selectionDragAnywhere = true;
+
+      // --- ИЗМЕНЕНИЕ: Дефолтная палитра для новых проектов ---
+      this.colors = ["#000000", "#ef4444", "#22c55e", "#3b82f6", "#eab308"];
 
       this.pens[0].icon = "pen-tool";
       this.penSizes = [4, 12, 24];
@@ -746,6 +760,7 @@ export class State {
       penSizes: this.penSizes,
       redoHistory: includeHistory ? redoHistory : [],
       selectionDragAnywhere: this.selectionDragAnywhere,
+      colors: this.colors, // <--- ИЗМЕНЕНИЕ: Добавили экспорт палитры
       strokes: this.getStrokesList(),
       thumbnail: "",
       updatedAt: Date.now(),

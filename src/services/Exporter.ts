@@ -209,17 +209,13 @@ export async function importFile(file: File): Promise<Project | null> {
               const pt = clonedEl.getPointAtLength(i);
               points.push({ x: pt.x, y: pt.y });
             }
+            // ✅ ИСПРАВЛЕНИЕ: Вернули правильное создание путей (линий)
             strokes.push({
               id: Math.random().toString(36).substring(2, 12),
               points,
-              color,
-              pen: {
-                ...PEN_PRESETS[1],
-                size: fontSize,
-                isText: true, // textContent удален отсюда
-              },
-              type: "text",
-              text: content, // ✅ ДОБАВИЛИ СЮДА (где он и должен быть)
+              color:
+                el.getAttribute("fill") || el.getAttribute("stroke") || "#000",
+              pen: { ...PEN_PRESETS[1] },
               _pathDirty: true,
             });
           }
@@ -250,20 +246,20 @@ export async function importFile(file: File): Promise<Project | null> {
           { x: x + width, y },
           { x: x + width, y: y + height },
           { x, y: y + height },
-          { x, y },
         ];
 
+        // ✅ ИСПРАВЛЕНИЕ: Правильно сохраняем текст в корень объекта, а не в pen
         strokes.push({
           id: Math.random().toString(36).substring(2, 12),
+          type: "text",
+          text: content,
           points,
           color,
           pen: {
             ...PEN_PRESETS[1],
             size: fontSize,
             isText: true,
-            textContent: content,
           },
-          type: "text",
           _pathDirty: true,
         });
       }
@@ -283,6 +279,7 @@ export async function importFile(file: File): Promise<Project | null> {
       activeSizeIndex: 1,
       penOptions: PEN_PRESETS[0],
       penSizes: [4, 12, 24],
+      colors: ["#000000", "#ef4444", "#22c55e", "#3b82f6", "#eab308"], // <--- ДОБАВЛЕНО
     };
   }
   return null;
