@@ -9,6 +9,7 @@ export type Stroke = {
   id: string;
   type?: "text";
   text?: string;
+  textLines?: string[]; // <--- ДОБАВЛЕНО: кэшированные строки текста
   points: Point[];
   color: string;
   pen: PenOptions;
@@ -24,7 +25,7 @@ export type HistoryStep =
   | { action: "ADD"; strokes: Stroke[] }
   | { action: "DELETE"; strokes: Stroke[]; indices?: number[] }
   | { action: "UPDATE"; before: Stroke[]; after: Stroke[] }
-  | { action: "REORDER"; before: string[]; after: string[] }; // <--- ДОБАВЛЕНО
+  | { action: "REORDER"; before: string[]; after: string[] };
 
 export type Project = {
   id: string;

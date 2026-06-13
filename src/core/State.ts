@@ -1,4 +1,3 @@
-// src/core/State.ts
 import { getStroke } from "perfect-freehand";
 import RBush from "rbush";
 import type {
@@ -26,8 +25,6 @@ import {
 } from "./SelectionMath";
 import { round1 } from "../shared/utils";
 
-// ✅ СУПЕР-ОПТИМИЗАЦИЯ: Быстрое копирование штрихов вместо медленного structuredClone.
-// V8 оптимизирует .map() и создание мелких объектов на лету, что убирает любые микрофризы при Undo/Redo/Move.
 export function fastCloneStroke(s: Stroke): Stroke {
   return {
     id: s.id,
@@ -64,6 +61,7 @@ export class State {
   public onLibrarySave: (item: LibraryItem) => void = () => {};
   public onLibraryDelete: (id: string) => void = () => {};
   public selectionDragAnywhere: boolean = true;
+  private uiUpdatePending: boolean = false;
 
   public camera: Camera = { x: 0, y: 0, zoom: 1 };
   public backgroundColor: string = "#000000";
@@ -801,6 +799,8 @@ export class State {
     }
   }
 
+  // Только измененные методы в src/core/State.ts
+
   public loadProject(project: Project | null) {
     let loadedStrokes: Stroke[] = [];
 
@@ -832,6 +832,12 @@ export class State {
       loadedStrokes = (project.strokes || []).map((stroke) => {
         if (!stroke.id) stroke.id = this.generateId();
         stroke._pathDirty = true;
+
+        // <--- ДОБАВЛЕНО: Генерируем textLines для старых проектов
+        if (stroke.type === "text" && stroke.text && !stroke.textLines) {
+          stroke.textLines = stroke.text.split("\n");
+        }
+
         return stroke;
       });
     } else {
@@ -859,6 +865,44 @@ export class State {
     this.currentPen = this.pens[0];
     this.onUpdate();
     this.triggerUIUpdate();
+  }
+
+  public addText(
+    text: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ) {
+    const newStroke: Stroke = {
+      id: this.generateId(),
+      type: "text",
+      text,
+      textLines: text.split("\n"), // <--- ДОБАВЛЕНО: Один раз сплитим
+      points: [
+        { x, y },
+        { x: x + width, y },
+        { x: x + width, y: y + height },
+        { x, y: y + height },
+      ],
+      color: this.currentColor,
+      pen: { ...this.currentPen },
+      _pathDirty: true,
+    };
+    newStroke.outlinePolygon = [...newStroke.points];
+
+    this.strokes.set(newStroke.id, newStroke);
+    this.strokeOrder.push(newStroke.id);
+    this.syncDeltas.set(newStroke.id, newStroke);
+
+    this.historyManager.push({
+      action: "ADD",
+      strokes: [fastCloneStroke(newStroke)],
+    });
+
+    this.addStrokeToIndex(newStroke);
+    this.markDirty();
+    this.onUpdate();
   }
 
   public getProjectData(includeHistory = false): Project {
@@ -932,43 +976,5 @@ export class State {
     return (
       Math.random().toString(36).substring(2, 12) + Date.now().toString(36)
     );
-  }
-
-  public addText(
-    text: string,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-  ) {
-    const newStroke: Stroke = {
-      id: this.generateId(),
-      type: "text",
-      text,
-      points: [
-        { x, y },
-        { x: x + width, y },
-        { x: x + width, y: y + height },
-        { x, y: y + height },
-      ],
-      color: this.currentColor,
-      pen: { ...this.currentPen },
-      _pathDirty: true,
-    };
-    newStroke.outlinePolygon = [...newStroke.points];
-
-    this.strokes.set(newStroke.id, newStroke);
-    this.strokeOrder.push(newStroke.id);
-    this.syncDeltas.set(newStroke.id, newStroke);
-
-    this.historyManager.push({
-      action: "ADD",
-      // ✅ Оптимизация
-      strokes: [fastCloneStroke(newStroke)],
-    });
-
-    this.addStrokeToIndex(newStroke);
-    this.markDirty();
-    this.onUpdate();
   }
 }

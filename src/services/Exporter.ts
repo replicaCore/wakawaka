@@ -15,7 +15,6 @@ function getProjectBounds(strokes: Stroke[]) {
     const pad = s.pen.size;
 
     if (s.type === "text" && s.points.length >= 2) {
-      // Для текста используем границы прямоугольника
       const [topLeft, bottomRight] = [s.points[0], s.points[2]];
       hasPoints = true;
       if (topLeft.x - pad < minX) minX = topLeft.x - pad;
@@ -67,14 +66,12 @@ export async function exportImage(project: Project, type: "png" | "jpg") {
   for (const stroke of project.strokes) {
     if (stroke.points.length === 0) continue;
 
-    // Обработка текстовых объектов
     if (stroke.type === "text" && stroke.text) {
-      // ✅ ЗАМЕНИЛИ stroke.pen.textContent на stroke.text
       ctx.globalAlpha = 1.0;
       ctx.font = `${stroke.pen.size}px Arial`;
       ctx.fillStyle = stroke.color;
       ctx.textBaseline = "top";
-      const lines = stroke.text.split("\n"); // ✅ ЗАМЕНИЛИ
+      const lines = stroke.textLines || stroke.text.split("\n");
       let currentY = stroke.points[0].y;
       const lineHeight = stroke.pen.size * 1.2;
       for (const line of lines) {
@@ -106,17 +103,14 @@ export function exportSVG(project: Project) {
   let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${bounds.minX} ${bounds.minY} ${width} ${height}" width="${width}" height="${height}">`;
   svg += `<rect x="${bounds.minX}" y="${bounds.minY}" width="${width}" height="${height}" fill="${project.backgroundColor}" />`;
 
-  // Встраиваем проект в SVG для идеального восстановления
   const metaStr = encodeURIComponent(JSON.stringify(project));
   svg += `<metadata id="canvas-hub-data" data-json="${metaStr}"></metadata>`;
 
   for (const stroke of project.strokes) {
     if (stroke.points.length === 0) continue;
 
-    // Обработка текстовых объектов
     if (stroke.type === "text" && stroke.text) {
-      // ✅ ЗАМЕНИЛИ
-      const lines = stroke.text.split("\n"); // ✅ ЗАМЕНИЛИ
+      const lines = stroke.textLines || stroke.text.split("\n");
       const fontSize = stroke.pen.size;
       const lineHeight = fontSize * 1.2;
       svg += `<text x="${stroke.points[0].x}" y="${stroke.points[0].y}" font-family="Arial" font-size="${fontSize}px" fill="${stroke.color}" dominant-baseline="hanging">`;
@@ -169,7 +163,6 @@ export async function importFile(file: File): Promise<Project | null> {
   if (file.name.endsWith(".svg")) {
     const doc = new DOMParser().parseFromString(text, "image/svg+xml");
 
-    // Пытаемся достать встроенные метаданные (если SVG сделан в нашем приложении)
     const meta = doc.getElementById("canvas-hub-data");
     if (meta) {
       try {
@@ -181,12 +174,10 @@ export async function importFile(file: File): Promise<Project | null> {
       }
     }
 
-    // Запасной план: парсинг сторонних SVG
     const paths = doc.querySelectorAll("path, polyline, polygon, line");
     const texts = doc.querySelectorAll("text");
     const strokes: Stroke[] = [];
 
-    // Парсим пути
     const svgContainer = document.createElement("div");
     svgContainer.style.visibility = "hidden";
     svgContainer.style.position = "absolute";
@@ -209,7 +200,6 @@ export async function importFile(file: File): Promise<Project | null> {
               const pt = clonedEl.getPointAtLength(i);
               points.push({ x: pt.x, y: pt.y });
             }
-            // ✅ ИСПРАВЛЕНИЕ: Вернули правильное создание путей (линий)
             strokes.push({
               id: Math.random().toString(36).substring(2, 12),
               points,
@@ -224,7 +214,6 @@ export async function importFile(file: File): Promise<Project | null> {
       }
     });
 
-    // Парсим текстовые элементы
     texts.forEach((el) => {
       const x = parseFloat(el.getAttribute("x") || "0");
       const y = parseFloat(el.getAttribute("y") || "0");
@@ -232,7 +221,6 @@ export async function importFile(file: File): Promise<Project | null> {
       const color = el.getAttribute("fill") || "#000";
       const content = el.textContent || "";
 
-      // Создаем прямоугольник для текста
       const tempCanvas = document.createElement("canvas");
       const tempCtx = tempCanvas.getContext("2d");
       if (tempCtx) {
@@ -248,11 +236,11 @@ export async function importFile(file: File): Promise<Project | null> {
           { x, y: y + height },
         ];
 
-        // ✅ ИСПРАВЛЕНИЕ: Правильно сохраняем текст в корень объекта, а не в pen
         strokes.push({
           id: Math.random().toString(36).substring(2, 12),
           type: "text",
           text: content,
+          textLines: content.split("\n"), // <--- ДОБАВЛЕНО
           points,
           color,
           pen: {
@@ -279,7 +267,7 @@ export async function importFile(file: File): Promise<Project | null> {
       activeSizeIndex: 1,
       penOptions: PEN_PRESETS[0],
       penSizes: [4, 12, 24],
-      colors: ["#000000", "#ef4444", "#22c55e", "#3b82f6", "#eab308"], // <--- ДОБАВЛЕНО
+      colors: ["#000000", "#ef4444", "#22c55e", "#3b82f6", "#eab308"],
     };
   }
   return null;

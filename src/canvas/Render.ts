@@ -122,8 +122,6 @@ export class Render {
     });
 
     const visibleIds = new Set(visibleItems.map((item) => item.stroke.id));
-
-    // Изменяем порог включения LOD на 50% (0.5) для лучшей производительности
     const useLOD = camera.zoom < 0.5;
 
     for (const strokeId of this.state.strokeOrder) {
@@ -132,14 +130,15 @@ export class Render {
       const stroke = this.state.strokes.get(strokeId);
       if (!stroke) continue;
 
-      // Рендер текста
+      // 🔴 Рендер текста (ОПТИМИЗИРОВАН)
       if (stroke.type === "text" && stroke.text) {
         this.ctx.globalAlpha = 1.0;
         this.ctx.font = `${stroke.pen.size}px Arial`;
         this.ctx.fillStyle = stroke.color;
         this.ctx.textBaseline = "top";
 
-        const lines = stroke.text.split("\n");
+        // ✅ ИСПРАВЛЕНИЕ: Берем готовый массив строк из стейта! Нет утечек памяти.
+        const lines = stroke.textLines || [stroke.text];
         let currentY = stroke.points[0].y;
         const lineHeight = stroke.pen.size * 1.2;
 
