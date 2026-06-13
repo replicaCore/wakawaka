@@ -62,12 +62,12 @@ export class SelectionToolbar {
       
       <div class="w-px h-6 bg-gray-300 my-auto mx-1"></div>
       
-      <button id="sel-layer-up" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="На передний план"><i data-lucide="arrow-up-to-line" class="w-5 h-5 pointer-events-none"></i></button>
-      <button id="sel-layer-down" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="На задний план"><i data-lucide="arrow-down-to-line" class="w-5 h-5 pointer-events-none"></i></button>
+      <!-- Изменены title для слоев -->
+      <button id="sel-layer-up" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="На слой выше"><i data-lucide="arrow-up-to-line" class="w-5 h-5 pointer-events-none"></i></button>
+      <button id="sel-layer-down" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="На слой ниже"><i data-lucide="arrow-down-to-line" class="w-5 h-5 pointer-events-none"></i></button>
 
       <div class="w-px h-6 bg-gray-300 my-auto mx-1"></div>
 
-      <!-- НОВЫЕ ИНСТРУМЕНТЫ -->
       <button id="sel-clone" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="Дублировать"><i data-lucide="copy" class="w-5 h-5 pointer-events-none"></i></button>
       <button id="sel-flip-h" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="Отразить по горизонтали"><i data-lucide="flip-horizontal" class="w-5 h-5 pointer-events-none"></i></button>
       <button id="sel-flip-v" class="w-10 h-10 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100" title="Отразить по вертикали"><i data-lucide="flip-vertical" class="w-5 h-5 pointer-events-none"></i></button>
@@ -78,7 +78,6 @@ export class SelectionToolbar {
       ${groupButtonsHtml}
     `;
 
-      // Высчитываем координаты для меню (сначала рендерим, чтобы получить ширину/высоту элемента)
       const { camera } = this.state;
       const screenX =
         ((bounds.minX + bounds.maxX) / 2) * camera.zoom + camera.x;
@@ -104,6 +103,16 @@ export class SelectionToolbar {
       this.container.style.top = `${topPos}px`;
       this.container.style.left = `${leftPos}px`;
       this.container.style.transform = "translateX(-50%)";
+
+      // Правильные ID из вашего HTML
+      document.getElementById("sel-layer-up")?.addEventListener("click", () => {
+        this.state.reorderSelected("up");
+      });
+      document
+        .getElementById("sel-layer-down")
+        ?.addEventListener("click", () => {
+          this.state.reorderSelected("down");
+        });
 
       document.getElementById("sel-move")?.addEventListener("click", () => {
         this.state.selectionMode = "move";
@@ -137,6 +146,7 @@ export class SelectionToolbar {
       document
         .getElementById("sel-flip-v")
         ?.addEventListener("click", () => this.state.flipSelected("vertical"));
+
       refreshIcons();
     }
   }

@@ -369,8 +369,8 @@ export class InputHandler {
     const lastPt =
       this.state.currentStroke[this.state.currentStroke.length - 1];
     if (lastPt) {
-      // ✅ ИСПРАВЛЕНИЕ: Адаптивный порог (1.5 пикселя экрана). Не плодит 100500 точек, но сохраняет идеальную плавность при любом зуме
-      const drawThreshold = 1.5 / this.state.camera.zoom;
+      const drawThreshold = Math.min(1.5 / this.state.camera.zoom, 3);
+
       const dist = Math.hypot(worldPt.x - lastPt.x, worldPt.y - lastPt.y);
       if (dist < drawThreshold) return;
     }

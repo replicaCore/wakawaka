@@ -75,8 +75,6 @@ export class Render {
     this.drawLassoPath();
   };
 
-  // В src/canvas/Render.ts найдите метод drawAllStrokes() и обновите цикл отрисовки:
-
   private drawAllStrokes() {
     const { camera, spatialIndex } = this.state;
 
@@ -93,7 +91,9 @@ export class Render {
     });
 
     const visibleIds = new Set(visibleItems.map((item) => item.stroke.id));
-    const useLOD = camera.zoom < 0.3;
+
+    // ✅ Изменяем порог включения LOD на 50% (0.5) для лучшей производительности
+    const useLOD = camera.zoom < 0.5;
 
     for (const strokeId of this.state.strokeOrder) {
       if (!visibleIds.has(strokeId)) continue;
@@ -101,7 +101,7 @@ export class Render {
       const stroke = this.state.strokes.get(strokeId);
       if (!stroke) continue;
 
-      // 🔴 Рендер текста
+      // Рендер текста
       if (stroke.type === "text" && stroke.text) {
         this.ctx.globalAlpha = 1.0;
         this.ctx.font = `${stroke.pen.size}px Arial`;
@@ -116,14 +116,15 @@ export class Render {
           this.ctx.fillText(line, stroke.points[0].x, currentY);
           currentY += lineHeight;
         }
-        continue; // Пропускаем логику путей для текста
+        continue;
       }
 
-      // 🔴 Рендер обычных линий
+      // Рендер обычных линий
       let path = this.pathCache.get(stroke);
       let simplePath = this.simplePathCache.get(stroke);
 
       if (!path || !simplePath || stroke._pathDirty) {
+        // Нормальный сглаженный путь (для приближения)
         const outlinePoints = getStroke(stroke.points, {
           ...stroke.pen,
           simulatePressure: false,
@@ -131,29 +132,32 @@ export class Render {
         path = new Path2D(getSvgPathFromStroke(outlinePoints));
         this.pathCache.set(stroke, path);
 
-        // ✅ ИСПРАВЛЕНИЕ: Рисуем LOD-линию с помощью квадратичных кривых (quadraticCurveTo), а не прямых линий
+        // ✅ Сильная оптимизация для отдаления: прореживание точек
         simplePath = new Path2D();
         if (stroke.points.length > 0) {
           simplePath.moveTo(stroke.points[0].x, stroke.points[0].y);
-          if (stroke.points.length === 1) {
-            simplePath.lineTo(stroke.points[0].x, stroke.points[0].y);
-          } else if (stroke.points.length === 2) {
-            simplePath.lineTo(stroke.points[1].x, stroke.points[1].y);
-          } else {
-            let i = 1;
-            for (; i < stroke.points.length - 1; i++) {
-              const xc = (stroke.points[i].x + stroke.points[i + 1].x) / 2;
-              const yc = (stroke.points[i].y + stroke.points[i + 1].y) / 2;
-              simplePath.quadraticCurveTo(
-                stroke.points[i].x,
-                stroke.points[i].y,
-                xc,
-                yc,
-              );
+
+          // Децимация: берем только те точки, которые находятся на
+          // расстоянии больше 10 пикселей друг от друга.
+          const OPTIMIZATION_THRESHOLD = 10;
+          let lastSavedPt = stroke.points[0];
+
+          for (let i = 1; i < stroke.points.length - 1; i++) {
+            const pt = stroke.points[i];
+            const dist = Math.hypot(pt.x - lastSavedPt.x, pt.y - lastSavedPt.y);
+
+            // Рисуем ПРЯМУЮ линию только если точка далеко
+            if (dist > OPTIMIZATION_THRESHOLD) {
+              simplePath.lineTo(pt.x, pt.y);
+              lastSavedPt = pt;
             }
-            simplePath.lineTo(stroke.points[i].x, stroke.points[i].y);
           }
+
+          // Обязательно замыкаем последнюю точку
+          const lastPt = stroke.points[stroke.points.length - 1];
+          simplePath.lineTo(lastPt.x, lastPt.y);
         }
+
         this.simplePathCache.set(stroke, simplePath);
         stroke._pathDirty = false;
       }
@@ -169,17 +173,21 @@ export class Render {
       if (useLOD) {
         this.ctx.strokeStyle = stroke.color;
         this.ctx.lineWidth = stroke.pen.size;
+        // Оставляем скругления на концах прямых, чтобы не было дыр
         this.ctx.lineCap = "round";
         this.ctx.lineJoin = "round";
-        this.ctx.stroke(simplePath);
+        this.ctx.stroke(simplePath); // Отрисовывается сильно прореженный ломанный путь
       } else {
         this.ctx.fillStyle = stroke.color;
-        this.ctx.fill(path);
+        this.ctx.fill(path); // Отрисовывается идеальная линия Perfect Freehand
       }
     }
 
     this.ctx.globalAlpha = 1.0;
 
+    // Отрисовка "живой" линии в процессе рисования
+    // Так как она рисуется здесь, она ВСЕГДА будет использовать perfect-freehand
+    // и будет идеально сглажена даже на масштабе 10%
     if (this.state.currentStroke.length > 0) {
       this.ctx.fillStyle = this.state.currentColor;
       if (this.state.currentPen.isMarker) this.ctx.globalAlpha = 0.4;
@@ -193,8 +201,6 @@ export class Render {
       this.ctx.globalAlpha = 1.0;
     }
   }
-
-  // --- Вспомогательные методы рендера (без изменений) ---
 
   private computeStrokeBounds(stroke: Stroke) {
     if (stroke.points.length === 0) return undefined;

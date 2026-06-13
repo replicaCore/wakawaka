@@ -18,12 +18,13 @@ export type Stroke = {
   _pathDirty?: boolean;
 };
 
-export type HistoryAction = "ADD" | "DELETE" | "UPDATE";
+export type HistoryAction = "ADD" | "DELETE" | "UPDATE" | "REORDER";
 
 export type HistoryStep =
   | { action: "ADD"; strokes: Stroke[] }
   | { action: "DELETE"; strokes: Stroke[]; indices?: number[] }
-  | { action: "UPDATE"; before: Stroke[]; after: Stroke[] };
+  | { action: "UPDATE"; before: Stroke[]; after: Stroke[] }
+  | { action: "REORDER"; before: string[]; after: string[] }; // <--- ДОБАВЛЕНО
 
 export type Project = {
   id: string;
@@ -39,7 +40,7 @@ export type Project = {
   history?: HistoryStep[];
   redoHistory?: HistoryStep[];
   selectionDragAnywhere?: boolean;
-  colors?: any[]; // <--- ДОБАВЛЕНО: Сохранение палитры
+  colors?: any[];
 };
 
 export type PenOptions = {

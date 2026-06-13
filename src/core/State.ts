@@ -208,6 +208,9 @@ export class State {
           this.syncDeltas.set(s.id, restored);
         }
         break;
+      case "REORDER": // <--- ДОБАВЛЕНО
+        this.strokeOrder = [...step.before];
+        break;
     }
   }
 
@@ -238,6 +241,9 @@ export class State {
           this.addStrokeToIndex(cloned);
           this.syncDeltas.set(s.id, cloned);
         }
+        break;
+      case "REORDER": // <--- ДОБАВЛЕНО
+        this.strokeOrder = [...step.after];
         break;
     }
   }
@@ -692,6 +698,101 @@ export class State {
         this.addStrokeToIndex(stroke);
       }
     });
+  }
+
+  // Добавьте эти методы в класс State, например, после метода flipSelected
+
+  public flipSelected(direction: "horizontal" | "vertical") {
+    if (this.selectedStrokes.size === 0) return;
+    const bounds = this.getSelectionBounds();
+    if (!bounds) return;
+
+    const cx = (bounds.minX + bounds.maxX) / 2;
+    const cy = (bounds.minY + bounds.maxY) / 2;
+
+    this.executeUpdate(() => {
+      for (const stroke of this.selectedStrokes) {
+        this.removeStrokeFromIndex(stroke);
+
+        stroke.bounds = undefined;
+        stroke.outlinePolygon = undefined;
+        stroke._pathDirty = true;
+
+        for (const p of stroke.points) {
+          if (direction === "horizontal") p.x = round1(2 * cx - p.x);
+          else p.y = round1(2 * cy - p.y);
+        }
+
+        this.addStrokeToIndex(stroke);
+      }
+    });
+  }
+
+  // --- ДОБАВЛЕНО: Управление слоями (Z-index) ---
+  public reorderSelected(direction: "up" | "down" | "front" | "back") {
+    if (this.selectedStrokes.size === 0) return;
+
+    const beforeOrder = [...this.strokeOrder];
+
+    // Получаем ID выделенных и невыделенных объектов в их текущем порядке
+    const selectedIds = new Set(
+      Array.from(this.selectedStrokes).map((s) => s.id),
+    );
+    const unselectedIds = this.strokeOrder.filter((id) => !selectedIds.has(id));
+    const sortedSelectedIds = this.strokeOrder.filter((id) =>
+      selectedIds.has(id),
+    );
+
+    if (direction === "front") {
+      // На самый передний план
+      this.strokeOrder = [...unselectedIds, ...sortedSelectedIds];
+    } else if (direction === "back") {
+      // На самый задний план
+      this.strokeOrder = [...sortedSelectedIds, ...unselectedIds];
+    } else if (direction === "up") {
+      // Поднять на 1 слой выше
+      const newOrder = [...this.strokeOrder];
+      for (let i = newOrder.length - 2; i >= 0; i--) {
+        if (selectedIds.has(newOrder[i]) && !selectedIds.has(newOrder[i + 1])) {
+          const temp = newOrder[i];
+          newOrder[i] = newOrder[i + 1];
+          newOrder[i + 1] = temp;
+        }
+      }
+      this.strokeOrder = newOrder;
+    } else if (direction === "down") {
+      // Опустить на 1 слой ниже
+      const newOrder = [...this.strokeOrder];
+      for (let i = 1; i < newOrder.length; i++) {
+        if (selectedIds.has(newOrder[i]) && !selectedIds.has(newOrder[i - 1])) {
+          const temp = newOrder[i];
+          newOrder[i] = newOrder[i - 1];
+          newOrder[i - 1] = temp;
+        }
+      }
+      this.strokeOrder = newOrder;
+    }
+
+    // Проверяем, изменился ли порядок на самом деле
+    let changed = false;
+    for (let i = 0; i < beforeOrder.length; i++) {
+      if (beforeOrder[i] !== this.strokeOrder[i]) {
+        changed = true;
+        break;
+      }
+    }
+
+    // Сохраняем в историю и триггерим рендер
+    if (changed) {
+      this.historyManager.push({
+        action: "REORDER",
+        before: beforeOrder,
+        after: [...this.strokeOrder],
+      });
+      this.markDirty();
+      this.onUpdate();
+      this.triggerUIUpdate();
+    }
   }
 
   public loadProject(project: Project | null) {
