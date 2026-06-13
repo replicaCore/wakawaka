@@ -5,10 +5,8 @@ import type { AutosaveService } from "../../services/Autosave";
 import { importFile } from "../../services/Exporter";
 import { refreshIcons } from "../icons";
 import type { Project } from "../../shared/types";
-
 export class HubView {
   private grid = document.getElementById("projects-grid") as HTMLDivElement;
-
   constructor(
     private db: Database,
     private state: State,
@@ -21,20 +19,16 @@ export class HubView {
     document.getElementById("import-btn")?.addEventListener("click", () => {
       document.getElementById("import-file-input")?.click();
     });
-
     document
       .getElementById("back-to-hub-btn")
       ?.addEventListener("click", () => this.saveAndGoToHub());
-
     document
       .getElementById("import-file-input")
       ?.addEventListener("change", async (e) => {
         const input = e.target as HTMLInputElement;
         if (!input.files || input.files.length === 0) return;
-
         const file = input.files[0];
         const project = await importFile(file);
-
         if (project) {
           project.id = Date.now().toString();
           this.openProject(project);
@@ -42,11 +36,9 @@ export class HubView {
         input.value = "";
       });
   }
-
   public async init() {
     const urlParams = new URLSearchParams(window.location.search);
     const projectId = urlParams.get("id");
-
     if (projectId) {
       const proj = await this.db.getProject(projectId);
       if (proj) {
@@ -54,11 +46,9 @@ export class HubView {
         return;
       }
     }
-
     this.editorView.hide();
     this.renderGrid();
   }
-
   private async saveAndGoToHub() {
     if (this.state.isDirty) {
       await this.autosave.forceSave();
@@ -67,7 +57,6 @@ export class HubView {
     this.renderGrid();
     window.history.replaceState({}, document.title, window.location.pathname);
   }
-
   private createNewProject() {
     this.state.loadProject(null);
     this.editorView.show();
@@ -77,29 +66,24 @@ export class HubView {
       `?id=${this.state.currentProjectId}`,
     );
   }
-
   private openProject(project: Project) {
     this.state.loadProject(project);
     this.editorView.show();
     window.history.replaceState({}, document.title, `?id=${project.id}`);
   }
-
   private async renderGrid() {
     this.grid.innerHTML = "";
     const projects = await this.db.getAllProjects();
     projects.sort((a, b) => b.updatedAt - a.updatedAt);
-
     if (projects.length === 0) {
       this.grid.innerHTML = `<div class="col-span-full text-center text-gray-400 mt-10">У вас пока нет проектов. Создайте новый!</div>`;
       return;
     }
-
     projects.forEach((proj) => {
       const card = document.createElement("div");
       card.className =
         "bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition-shadow group relative flex flex-col";
       const date = new Date(proj.updatedAt).toLocaleDateString();
-
       card.innerHTML = `
         <div class="aspect-square bg-gray-100 relative">
            <img src="${proj.thumbnail}" class="w-full h-full object-cover" alt="thumbnail">
@@ -112,12 +96,10 @@ export class HubView {
           <i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i>
         </button>
       `;
-
       card.addEventListener("click", (e) => {
         if ((e.target as HTMLElement).closest(".delete-btn")) return;
         this.openProject(proj);
       });
-
       card
         .querySelector(".delete-btn")
         ?.addEventListener("click", async (e) => {
@@ -127,7 +109,6 @@ export class HubView {
             this.renderGrid();
           }
         });
-
       this.grid.appendChild(card);
     });
     refreshIcons();

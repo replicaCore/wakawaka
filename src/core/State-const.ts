@@ -1,5 +1,4 @@
 import { PenOptions } from "../shared/types";
-
 export const PEN_PRESETS: PenOptions[] = [
   {
     icon: "pen-tool",
@@ -33,7 +32,6 @@ export const PEN_PRESETS: PenOptions[] = [
     isText: true,
   },
 ];
-
 export const ERASER_HITBOX_PADDING = 10;
 export const DUPLICATE_OFFSET_PX = 20;
 export const SELECTION_BOUNDS_PADDING = 5;

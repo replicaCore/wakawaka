@@ -1,12 +1,9 @@
 import type { State } from "../../core/State";
-
 export function renderPensTab(
   content: HTMLDivElement,
   state: State,
-  // reRender: () => void,
 ) {
-  const pen = state.pens[0]; // ТЕПЕРЬ 0
-
+  const pen = state.pens[0]; 
   content.innerHTML = `
     <div class="flex flex-col gap-4 mb-4">
       <div class="border rounded-xl p-4 bg-gray-50 flex flex-col gap-3 shadow-sm">
@@ -26,7 +23,6 @@ export function renderPensTab(
           </label>
         </div>
       </div>
-
       <div class="border rounded-xl p-4 bg-gray-50 flex flex-col gap-4 shadow-sm text-xs font-medium text-gray-600">
         <h3 class="font-bold text-gray-700 border-b pb-2 mb-1 text-sm">Форма и физика кисти</h3>
         <label class="flex justify-between items-center">
@@ -44,15 +40,11 @@ export function renderPensTab(
       </div>
     </div>
   `;
-
-  // Логика обновления размеров S, M, L
   content.querySelectorAll(".size-input").forEach((input) => {
     input.addEventListener("input", (e) => {
       const idx = parseInt((e.target as HTMLInputElement).dataset.idx!);
       const val = parseInt((e.target as HTMLInputElement).value) || 1;
       state.penSizes[idx] = val;
-
-      // Применяем и сохраняем изменения
       if (state.activeSizeIndex === idx) {
         state.setPenSizeIndex(idx);
       } else {
@@ -60,19 +52,16 @@ export function renderPensTab(
       }
     });
   });
-
-  // Логика обновления физики кисти
   const setupSlider = (cls: string, prop: keyof typeof pen) => {
     content.querySelector(cls)?.addEventListener("input", (e) => {
       const val = parseFloat((e.target as HTMLInputElement).value);
       (pen as any)[prop] = val;
       if (state.currentPen === pen) {
         state.triggerUIUpdate();
-        state.onUpdate(); // Автосохранение при смене физики
+        state.onUpdate(); 
       }
     });
   };
-
   setupSlider(".prop-thinning", "thinning");
   setupSlider(".prop-smoothing", "smoothing");
   setupSlider(".prop-streamline", "streamline");

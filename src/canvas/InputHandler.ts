@@ -1,8 +1,6 @@
-// src/canvas/InputHandler.ts
 import { round1 } from "../shared/utils";
 import type { State } from "../core/State";
 import type { Coordinate } from "../shared/types";
-
 export class InputHandler {
   private isDrawing = false;
   private isPanning = false;
@@ -10,22 +8,17 @@ export class InputHandler {
   private isDrawingLasso = false;
   private isDraggingSelection = false;
   private hasDragged = false;
-
   private lastDragWorldPt: Coordinate = { x: 0, y: 0 };
   private lastPanPoint: Coordinate = { x: 0, y: 0 };
   private lastEraserWorldPt: Coordinate | null = null;
-
   private cursorCircle: HTMLDivElement;
   private canvas: HTMLCanvasElement;
   private state: State;
-
   private pointers = new Map<number, PointerEvent>();
   private lastPinchDist: number | null = null;
   private lastPinchCenter: Coordinate | null = null;
   private activePenId: number | null = null;
-
   private activeTextInput: HTMLTextAreaElement | null = null;
-
   constructor(canvas: HTMLCanvasElement, state: State) {
     this.canvas = canvas;
     this.state = state;
@@ -34,7 +27,6 @@ export class InputHandler {
     ) as HTMLDivElement;
     this.setupEvents();
   }
-
   private getScreenToWorld(x: number, y: number): Coordinate {
     const { camera } = this.state;
     return {
@@ -42,7 +34,6 @@ export class InputHandler {
       y: (y - camera.y) / camera.zoom,
     };
   }
-
   private setupEvents() {
     this.canvas.addEventListener("pointerdown", this.handlePointerDown);
     this.canvas.addEventListener("pointermove", this.handlePointerMove);
@@ -52,7 +43,6 @@ export class InputHandler {
     window.addEventListener("pointerup", this.handlePointerUp);
     window.addEventListener("pointercancel", this.handlePointerUp);
     this.canvas.addEventListener("wheel", this.handleWheel, { passive: false });
-
     document.addEventListener("keydown", (e) => {
       if (
         e.target instanceof HTMLTextAreaElement ||
@@ -64,7 +54,6 @@ export class InputHandler {
         this.canvas.style.cursor = "grab";
       }
     });
-
     document.addEventListener("keyup", (e) => {
       if (
         e.target instanceof HTMLTextAreaElement ||
@@ -77,7 +66,6 @@ export class InputHandler {
       }
     });
   }
-
   private createTextElement(
     clientX: number,
     clientY: number,
@@ -85,9 +73,7 @@ export class InputHandler {
   ) {
     const input = document.createElement("textarea");
     this.activeTextInput = input;
-
     const visualSize = this.state.currentPen.size * this.state.camera.zoom;
-
     input.style.position = "absolute";
     input.style.left = `${clientX}px`;
     input.style.top = `${clientY}px`;
@@ -106,7 +92,6 @@ export class InputHandler {
     input.style.zIndex = "1000";
     input.style.minWidth = `${visualSize * 3}px`;
     input.style.minHeight = `${visualSize * 1.5}px`;
-
     const autoResize = () => {
       input.style.width = "auto";
       input.style.height = "auto";
@@ -114,13 +99,10 @@ export class InputHandler {
       input.style.height = input.scrollHeight + 4 + "px";
     };
     input.addEventListener("input", autoResize);
-
     document.body.appendChild(input);
-
     setTimeout(() => {
       input.focus();
     }, 10);
-
     const commit = () => {
       if (this.activeTextInput === input) this.activeTextInput = null;
       const text = input.value.trim();
@@ -131,10 +113,8 @@ export class InputHandler {
       }
       input.remove();
     };
-
     input.addEventListener("blur", commit);
   }
-
   private handlePointerDown = (e: PointerEvent) => {
     if (e.pointerType === "pen") {
       this.activePenId = e.pointerId;
@@ -142,11 +122,8 @@ export class InputHandler {
         if (pt.pointerType === "touch") this.pointers.delete(id);
       }
     }
-
     if (this.activePenId !== null && e.pointerType === "touch") return;
-
     this.pointers.set(e.pointerId, e);
-
     if (this.pointers.size === 2) {
       if (this.activeTextInput) this.activeTextInput.blur();
       const pts = Array.from(this.pointers.values());
@@ -158,7 +135,6 @@ export class InputHandler {
         x: (pts[0].clientX + pts[1].clientX) / 2,
         y: (pts[0].clientY + pts[1].clientY) / 2,
       };
-
       this.isPanning = true;
       this.isDrawing = false;
       this.isDrawingLasso = false;
@@ -169,7 +145,6 @@ export class InputHandler {
       return;
     }
     if (this.pointers.size > 2) return;
-
     if (e.button === 1 || this.isSpacePressed) {
       if (this.activeTextInput) this.activeTextInput.blur();
       this.isPanning = true;
@@ -177,11 +152,8 @@ export class InputHandler {
       if (this.isSpacePressed) this.canvas.style.cursor = "grabbing";
       return;
     }
-
     if (e.pointerType === "touch") return;
-
     const worldPt = this.getScreenToWorld(e.clientX, e.clientY);
-
     if (this.state.currentPen.isText) {
       if (this.activeTextInput) {
         this.activeTextInput.blur();
@@ -190,23 +162,19 @@ export class InputHandler {
       this.createTextElement(e.clientX, e.clientY, worldPt);
       return;
     }
-
     if (this.state.currentPen.isEraser) {
       this.isDrawing = false;
       this.lastEraserWorldPt = worldPt;
       return;
     }
-
     if (this.state.spawningLibraryItem) {
       this.state.spawnLibraryItem(worldPt);
       this.canvas.style.cursor = "";
       return;
     }
-
     if (this.state.currentPen.isSelector) {
       const isInsideBox = this.state.isPointInSelectionBox(worldPt);
       const hasSelection = this.state.selectedStrokes.size > 0;
-
       if (hasSelection && (isInsideBox || this.state.selectionDragAnywhere)) {
         this.isDraggingSelection = true;
         this.hasDragged = false;
@@ -220,45 +188,36 @@ export class InputHandler {
       }
       return;
     }
-
     this.isDrawing = true;
     this.state.addPoint({
       x: round1(worldPt.x),
       y: round1(worldPt.y),
     });
   };
-
   private handlePointerMove = (e: PointerEvent) => {
     this.updateCursorVisual(e);
-
     if (this.activePenId !== null && e.pointerType === "touch") return;
-
     if (this.pointers.has(e.pointerId)) {
       this.pointers.set(e.pointerId, e);
     }
-
     const isInteracting =
       this.isDrawing ||
       this.isPanning ||
       this.isDrawingLasso ||
       this.isDraggingSelection;
-
     if (isInteracting) {
       const EDGE_ZONE = window.innerWidth / 15;
-
       const isNearEdge =
         e.clientX < EDGE_ZONE ||
         e.clientY < EDGE_ZONE ||
         e.clientX > window.innerWidth - EDGE_ZONE ||
         e.clientY > window.innerHeight - EDGE_ZONE;
-
       if (isNearEdge) {
         document.body.classList.add("canvas-active");
       } else {
         document.body.classList.remove("canvas-active");
       }
     }
-
     if (this.pointers.size === 2) {
       const pts = Array.from(this.pointers.values());
       const dist = Math.hypot(
@@ -269,14 +228,11 @@ export class InputHandler {
         x: (pts[0].clientX + pts[1].clientX) / 2,
         y: (pts[0].clientY + pts[1].clientY) / 2,
       };
-
       if (this.lastPinchCenter && this.lastPinchDist) {
         this.state.camera.x += center.x - this.lastPinchCenter.x;
         this.state.camera.y += center.y - this.lastPinchCenter.y;
-
         const zoomFactor = dist / this.lastPinchDist;
         const newZoom = this.state.camera.zoom * zoomFactor;
-
         if (newZoom >= 0.01 && newZoom <= 100) {
           this.state.camera.x =
             center.x -
@@ -288,7 +244,6 @@ export class InputHandler {
               (newZoom / this.state.camera.zoom);
           this.state.camera.zoom = newZoom;
         }
-
         this.lastPinchDist = dist;
         this.lastPinchCenter = center;
         this.state.onUpdate();
@@ -296,7 +251,6 @@ export class InputHandler {
       }
       return;
     }
-
     if (this.isPanning) {
       if (this.pointers.size === 1 && e.pointerType === "touch") return;
       this.state.camera.x += e.clientX - this.lastPanPoint.x;
@@ -306,16 +260,13 @@ export class InputHandler {
       this.state.triggerUIUpdate();
       return;
     }
-
     if (e.pointerType === "touch") return;
     const worldPt = this.getScreenToWorld(e.clientX, e.clientY);
-
     if (this.state.currentPen.isEraser && this.lastEraserWorldPt) {
       this.state.handleEraser(this.lastEraserWorldPt, worldPt);
       this.lastEraserWorldPt = worldPt;
       return;
     }
-
     if (this.isDrawingLasso) {
       const lassoThreshold = 5 / this.state.camera.zoom;
       const lastPt = this.state.lassoPath[this.state.lassoPath.length - 1];
@@ -323,7 +274,6 @@ export class InputHandler {
         const dist = Math.hypot(worldPt.x - lastPt.x, worldPt.y - lastPt.y);
         if (dist < lassoThreshold) return;
       }
-
       this.state.lassoPath.push({
         x: round1(worldPt.x),
         y: round1(worldPt.y),
@@ -332,13 +282,11 @@ export class InputHandler {
       this.state.onUpdate();
       return;
     }
-
     if (this.isDraggingSelection) {
       if (!this.hasDragged) {
         this.state.startContinuousUpdate();
         this.hasDragged = true;
       }
-
       if (this.state.selectionMode === "move") {
         const dx = worldPt.x - this.lastDragWorldPt.x;
         const dy = worldPt.y - this.lastDragWorldPt.y;
@@ -353,7 +301,6 @@ export class InputHandler {
             this.lastDragWorldPt.y - cy,
           );
           const currentDist = Math.hypot(worldPt.x - cx, worldPt.y - cy);
-
           if (lastDist > 1) {
             const scaleFactor = currentDist / lastDist;
             this.state.scaleSelected(scaleFactor, { x: cx, y: cy });
@@ -363,60 +310,47 @@ export class InputHandler {
       this.lastDragWorldPt = worldPt;
       return;
     }
-
     if (!this.isDrawing) return;
-
     const lastPt =
       this.state.currentStroke[this.state.currentStroke.length - 1];
     if (lastPt) {
       const drawThreshold = Math.min(1.5 / this.state.camera.zoom, 3);
-
       const dist = Math.hypot(worldPt.x - lastPt.x, worldPt.y - lastPt.y);
       if (dist < drawThreshold) return;
     }
-
     this.state.addPoint({
       x: round1(worldPt.x),
       y: round1(worldPt.y),
     });
   };
-
   private handlePointerUp = (e: PointerEvent) => {
     if (e.pointerId === this.activePenId) {
       this.activePenId = null;
     }
-
     this.pointers.delete(e.pointerId);
-
     if (this.pointers.size < 2) {
       this.lastPinchDist = null;
       this.lastPinchCenter = null;
     }
-
     if (this.pointers.size === 1) {
       const remaining = Array.from(this.pointers.values())[0];
-
       if (this.isPanning && remaining.pointerType !== "touch") {
         this.lastPanPoint = { x: remaining.clientX, y: remaining.clientY };
       } else {
         this.isPanning = false;
       }
     }
-
     if (this.pointers.size === 0) {
       document.body.classList.remove("canvas-active");
       this.isPanning = false;
-
       if (this.state.currentPen.isEraser) {
         this.lastEraserWorldPt = null;
         this.state.commitEraser();
       }
-
       if (this.isDrawingLasso) {
         this.isDrawingLasso = false;
         this.state.finishLasso();
       }
-
       if (this.isDraggingSelection) {
         this.isDraggingSelection = false;
         if (this.hasDragged) {
@@ -427,9 +361,7 @@ export class InputHandler {
           this.state.onUpdate();
         }
       }
-
       this.canvas.style.cursor = this.isSpacePressed ? "grab" : "";
-
       if (this.isDrawing) {
         this.isDrawing = false;
         if (!this.state.currentPen.isSelector) {
@@ -438,34 +370,27 @@ export class InputHandler {
       }
     }
   };
-
   private handleWheel = (e: WheelEvent) => {
     e.preventDefault();
     const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
     const { camera } = this.state;
     const newZoom = camera.zoom * zoomFactor;
-
     if (newZoom < 0.01 || newZoom > 100) return;
-
     const centerX = window.innerWidth / 2;
     const centerY = window.innerHeight / 2;
-
     camera.x = centerX - (centerX - camera.x) * (newZoom / camera.zoom);
     camera.y = centerY - (centerY - camera.y) * (newZoom / camera.zoom);
     camera.zoom = newZoom;
-
     this.state.onUpdate();
     this.state.triggerUIUpdate();
     this.updateCursorVisual(e as unknown as PointerEvent);
   };
-
   private updateCursorVisual(e: PointerEvent) {
     if (this.state.spawningLibraryItem) {
       this.canvas.style.cursor = "crosshair";
       this.cursorCircle.classList.add("hidden");
       return;
     }
-
     if (
       e.pointerType !== "touch" &&
       !this.state.currentPen.isSelector &&
@@ -482,7 +407,6 @@ export class InputHandler {
     } else {
       this.cursorCircle.classList.add("hidden");
     }
-
     if (this.state.currentPen.isText) {
       this.canvas.style.cursor = "text";
     } else if (!this.state.currentPen.isSelector) {

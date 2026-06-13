@@ -1,14 +1,12 @@
 import { defineConfig } from "vite";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
-
 export default defineConfig({
   plugins: [
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
       injectRegister: "inline",
-
       manifest: {
         name: "wakawaka",
         short_name: "wakawaka",
@@ -38,7 +36,6 @@ export default defineConfig({
           },
         ],
       },
-
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
       },
@@ -50,7 +47,6 @@ export default defineConfig({
     cssCodeSplit: false,
   },
   base: "/wakawaka/",
-
   preview: {
     allowedHosts: true,
   },

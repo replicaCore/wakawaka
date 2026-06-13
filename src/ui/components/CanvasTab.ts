@@ -1,5 +1,4 @@
 import type { State } from "../../core/State";
-
 export function renderCanvasTab(content: HTMLDivElement, state: State) {
   content.innerHTML = `
     <div class="flex flex-col gap-4">
@@ -18,7 +17,6 @@ export function renderCanvasTab(content: HTMLDivElement, state: State) {
       </label>
     </div>
   `;
-
   document.getElementById("bg-color-picker")?.addEventListener("input", (e) => {
     state.backgroundColor = (e.target as HTMLInputElement).value;
     state.markDirty();

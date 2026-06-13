@@ -1,19 +1,15 @@
-// src/services/ExportImport.ts
 import { getStroke } from "perfect-freehand";
 import { getSvgPathFromStroke } from "../shared/utils";
 import type { Project, Stroke, Point } from "../shared/types";
 import { PEN_PRESETS } from "../core/State-const";
-
 function getProjectBounds(strokes: Stroke[]) {
   let minX = Infinity,
     minY = Infinity,
     maxX = -Infinity,
     maxY = -Infinity;
   let hasPoints = false;
-
   for (const s of strokes) {
     const pad = s.pen.size;
-
     if (s.type === "text" && s.points.length >= 2) {
       const [topLeft, bottomRight] = [s.points[0], s.points[2]];
       hasPoints = true;
@@ -31,12 +27,10 @@ function getProjectBounds(strokes: Stroke[]) {
       }
     }
   }
-
   return hasPoints
     ? { minX, minY, maxX, maxY }
     : { minX: 0, minY: 0, maxX: 800, maxY: 600 };
 }
-
 function downloadURL(url: string, filename: string) {
   const a = document.createElement("a");
   a.href = url;
@@ -45,27 +39,21 @@ function downloadURL(url: string, filename: string) {
   a.click();
   document.body.removeChild(a);
 }
-
 export async function exportImage(project: Project, type: "png" | "jpg") {
   const bounds = getProjectBounds(project.strokes);
   const width = bounds.maxX - bounds.minX;
   const height = bounds.maxY - bounds.minY;
-
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext("2d")!;
-
   if (type === "jpg") {
     ctx.fillStyle = project.backgroundColor;
     ctx.fillRect(0, 0, width, height);
   }
-
   ctx.translate(-bounds.minX, -bounds.minY);
-
   for (const stroke of project.strokes) {
     if (stroke.points.length === 0) continue;
-
     if (stroke.type === "text" && stroke.text) {
       ctx.globalAlpha = 1.0;
       ctx.font = `${stroke.pen.size}px Arial`;
@@ -80,35 +68,28 @@ export async function exportImage(project: Project, type: "png" | "jpg") {
       }
       continue;
     }
-
     ctx.globalAlpha = stroke.pen.isMarker ? 0.4 : 1.0;
     ctx.fillStyle = stroke.color;
     const outlinePoints = getStroke(stroke.points, stroke.pen);
     const path = new Path2D(getSvgPathFromStroke(outlinePoints));
     ctx.fill(path);
   }
-
   const url = canvas.toDataURL(
     type === "jpg" ? "image/jpeg" : "image/png",
     1.0,
   );
   downloadURL(url, `${project.name}.${type}`);
 }
-
 export function exportSVG(project: Project) {
   const bounds = getProjectBounds(project.strokes);
   const width = bounds.maxX - bounds.minX;
   const height = bounds.maxY - bounds.minY;
-
   let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${bounds.minX} ${bounds.minY} ${width} ${height}" width="${width}" height="${height}">`;
   svg += `<rect x="${bounds.minX}" y="${bounds.minY}" width="${width}" height="${height}" fill="${project.backgroundColor}" />`;
-
   const metaStr = encodeURIComponent(JSON.stringify(project));
   svg += `<metadata id="canvas-hub-data" data-json="${metaStr}"></metadata>`;
-
   for (const stroke of project.strokes) {
     if (stroke.points.length === 0) continue;
-
     if (stroke.type === "text" && stroke.text) {
       const lines = stroke.textLines || stroke.text.split("\n");
       const fontSize = stroke.pen.size;
@@ -121,18 +102,15 @@ export function exportSVG(project: Project) {
       svg += `</text>`;
       continue;
     }
-
     const outline = getStroke(stroke.points, stroke.pen);
     const d = getSvgPathFromStroke(outline);
     const alpha = stroke.pen.isMarker ? 0.4 : 1.0;
     svg += `<path d="${d}" fill="${stroke.color}" opacity="${alpha}" />`;
   }
   svg += `</svg>`;
-
   const blob = new Blob([svg], { type: "image/svg+xml" });
   downloadURL(URL.createObjectURL(blob), `${project.name}.svg`);
 }
-
 function escapeXml(unsafe: string): string {
   return unsafe.replace(/[<>&]/g, function (m) {
     if (m === "<") return "&lt;";
@@ -141,16 +119,13 @@ function escapeXml(unsafe: string): string {
     return m;
   });
 }
-
 export function exportJSON(project: Project) {
   const json = JSON.stringify(project, null, 2);
   const blob = new Blob([json], { type: "application/json" });
   downloadURL(URL.createObjectURL(blob), `${project.name}.json`);
 }
-
 export async function importFile(file: File): Promise<Project | null> {
   const text = await file.text();
-
   if (file.name.endsWith(".json")) {
     try {
       return JSON.parse(text) as Project;
@@ -159,10 +134,8 @@ export async function importFile(file: File): Promise<Project | null> {
       return null;
     }
   }
-
   if (file.name.endsWith(".svg")) {
     const doc = new DOMParser().parseFromString(text, "image/svg+xml");
-
     const meta = doc.getElementById("canvas-hub-data");
     if (meta) {
       try {
@@ -173,11 +146,9 @@ export async function importFile(file: File): Promise<Project | null> {
         console.error("Meta parse error", e);
       }
     }
-
     const paths = doc.querySelectorAll("path, polyline, polygon, line");
     const texts = doc.querySelectorAll("text");
     const strokes: Stroke[] = [];
-
     const svgContainer = document.createElement("div");
     svgContainer.style.visibility = "hidden";
     svgContainer.style.position = "absolute";
@@ -187,7 +158,6 @@ export async function importFile(file: File): Promise<Project | null> {
       "svg",
     );
     svgContainer.appendChild(tempSvg);
-
     paths.forEach((el) => {
       if (el instanceof SVGPathElement) {
         tempSvg.appendChild(el.cloneNode(true));
@@ -213,14 +183,12 @@ export async function importFile(file: File): Promise<Project | null> {
         tempSvg.innerHTML = "";
       }
     });
-
     texts.forEach((el) => {
       const x = parseFloat(el.getAttribute("x") || "0");
       const y = parseFloat(el.getAttribute("y") || "0");
       const fontSize = parseFloat(el.getAttribute("font-size") || "16");
       const color = el.getAttribute("fill") || "#000";
       const content = el.textContent || "";
-
       const tempCanvas = document.createElement("canvas");
       const tempCtx = tempCanvas.getContext("2d");
       if (tempCtx) {
@@ -228,19 +196,17 @@ export async function importFile(file: File): Promise<Project | null> {
         const metrics = tempCtx.measureText(content);
         const width = metrics.width;
         const height = fontSize * 1.2 * content.split("\n").length;
-
         const points: Point[] = [
           { x, y },
           { x: x + width, y },
           { x: x + width, y: y + height },
           { x, y: y + height },
         ];
-
         strokes.push({
           id: Math.random().toString(36).substring(2, 12),
           type: "text",
           text: content,
-          textLines: content.split("\n"), // <--- ДОБАВЛЕНО
+          textLines: content.split("\n"), 
           points,
           color,
           pen: {
@@ -252,9 +218,7 @@ export async function importFile(file: File): Promise<Project | null> {
         });
       }
     });
-
     document.body.removeChild(svgContainer);
-
     return {
       id: Date.now().toString(),
       name: file.name.replace(".svg", ""),

@@ -1,15 +1,11 @@
-// src/shared/types.ts
 export type Coordinate = { x: number; y: number };
-
 export type Point = Coordinate;
-
 export type Camera = { x: number; y: number; zoom: number };
-
 export type Stroke = {
   id: string;
   type?: "text";
   text?: string;
-  textLines?: string[]; // <--- ДОБАВЛЕНО: кэшированные строки текста
+  textLines?: string[]; 
   points: Point[];
   color: string;
   pen: PenOptions;
@@ -18,15 +14,12 @@ export type Stroke = {
   outlinePolygon?: Point[];
   _pathDirty?: boolean;
 };
-
 export type HistoryAction = "ADD" | "DELETE" | "UPDATE" | "REORDER";
-
 export type HistoryStep =
   | { action: "ADD"; strokes: Stroke[] }
   | { action: "DELETE"; strokes: Stroke[]; indices?: number[] }
   | { action: "UPDATE"; before: Stroke[]; after: Stroke[] }
   | { action: "REORDER"; before: string[]; after: string[] };
-
 export type Project = {
   id: string;
   name: string;
@@ -43,7 +36,6 @@ export type Project = {
   selectionDragAnywhere?: boolean;
   colors?: any[];
 };
-
 export type PenOptions = {
   icon: string;
   size: number;
@@ -55,13 +47,11 @@ export type PenOptions = {
   isSelector?: boolean;
   isEraser?: boolean;
 };
-
 export type LibraryItem = {
   id: string;
   strokes: Stroke[];
   thumbnail: string;
 };
-
 export interface SpatialItem {
   minX: number;
   minY: number;

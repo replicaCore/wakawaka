@@ -29,11 +29,10 @@ import {
   Undo,
   Unlink,
   X,
-  FolderPlus, // Иконка создания группы
-  RotateCcw, // Иконка сброса
+  FolderPlus, 
+  RotateCcw, 
   createIcons,
 } from "lucide";
-
 export function refreshIcons() {
   createIcons({
     icons: {

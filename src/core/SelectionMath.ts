@@ -1,18 +1,14 @@
 import { getStroke } from "perfect-freehand";
 import type { Coordinate, Point, Stroke } from "../shared/types";
 import { SELECTION_BOUNDS_PADDING, ERASER_HITBOX_PADDING } from "./State-const";
-
 export function pointInPolygon(A: Coordinate, points: Coordinate[]): boolean {
   let windingNumber = 0;
   let a: Coordinate;
   let b: Coordinate;
-
   for (let i = 0; i < points.length; i++) {
     a = points[i];
     if (a.x === A.x && a.y === A.y) return true;
-
     b = points[(i + 1) % points.length];
-
     if (a.y <= A.y) {
       if (
         b.y > A.y &&
@@ -27,17 +23,14 @@ export function pointInPolygon(A: Coordinate, points: Coordinate[]): boolean {
       windingNumber -= 1;
     }
   }
-
   return windingNumber !== 0;
 }
-
 export function getSelectionBounds(strokes: Set<Stroke> | Stroke[]) {
   let minX = Infinity,
     minY = Infinity,
     maxX = -Infinity,
     maxY = -Infinity;
   let hasPoints = false;
-
   for (const stroke of strokes) {
     if (stroke.bounds) {
       hasPoints = true;
@@ -47,15 +40,11 @@ export function getSelectionBounds(strokes: Set<Stroke> | Stroke[]) {
       if (stroke.bounds.maxY > maxY) maxY = stroke.bounds.maxY;
       continue;
     }
-
     const padding = stroke.pen.size / 2 + SELECTION_BOUNDS_PADDING;
-
-    // Для текстовых объектов используем точки напрямую
     const pointsToCheck =
       stroke.type === "text" && stroke.points.length === 4
-        ? [stroke.points[0], stroke.points[2]] // Используем только противоположные углы
+        ? [stroke.points[0], stroke.points[2]]
         : stroke.points;
-
     for (const p of pointsToCheck) {
       hasPoints = true;
       if (p.x - padding < minX) minX = p.x - padding;
@@ -66,7 +55,6 @@ export function getSelectionBounds(strokes: Set<Stroke> | Stroke[]) {
   }
   return hasPoints ? { minX, minY, maxX, maxY } : null;
 }
-
 export function isPointInBounds(
   pt: Coordinate,
   bounds: ReturnType<typeof getSelectionBounds>,
@@ -79,7 +67,6 @@ export function isPointInBounds(
     pt.y <= bounds.maxY
   );
 }
-
 export function doBoundsIntersect(
   b1: { minX: number; minY: number; maxX: number; maxY: number },
   b2: { minX: number; minY: number; maxX: number; maxY: number },
@@ -91,7 +78,6 @@ export function doBoundsIntersect(
     b1.maxY >= b2.minY
   );
 }
-
 export function segmentsIntersect(
   a1: Point,
   a2: Point,
@@ -108,13 +94,10 @@ export function segmentsIntersect(
   const ua_t = BVx * ABy - BVy * ABx;
   const ub_t = AVx * ABy - AVy * ABx;
   const u_b = BVy * AVx - BVx * AVy;
-
   if (Math.abs(ua_t) <= precision || Math.abs(ub_t) <= precision) return false;
   if (Math.abs(u_b) <= precision) return false;
-
   const ua = ua_t / u_b;
   const ub = ub_t / u_b;
-
   return (
     ua >= -precision &&
     ua <= 1 + precision &&
@@ -122,7 +105,6 @@ export function segmentsIntersect(
     ub <= 1 + precision
   );
 }
-
 export function isEraserIntersectingStroke(
   eraserP1: Point,
   eraserP2: Point,
@@ -134,13 +116,9 @@ export function isEraserIntersectingStroke(
     if (!b) return false;
     stroke.bounds = b;
   }
-
   if (!stroke.outlinePolygon) {
     if (stroke.points.length === 0) return false;
-
-    // Обработка текстовых объектов
     if (stroke.type === "text") {
-      // Для текста outlinePolygon - это прямоугольник границ
       stroke.outlinePolygon = [...stroke.points];
     } else {
       const rawPolygon = getStroke(stroke.points, {
@@ -150,7 +128,6 @@ export function isEraserIntersectingStroke(
       stroke.outlinePolygon = rawPolygon.map((pt) => ({ x: pt[0], y: pt[1] }));
     }
   }
-
   const padding = ERASER_HITBOX_PADDING / zoom;
   const eraserBounds = {
     minX: Math.min(eraserP1.x, eraserP2.x) - padding,
@@ -158,11 +135,8 @@ export function isEraserIntersectingStroke(
     maxX: Math.max(eraserP1.x, eraserP2.x) + padding,
     maxY: Math.max(eraserP1.y, eraserP2.y) + padding,
   };
-
   if (!doBoundsIntersect(eraserBounds, stroke.bounds)) return false;
-
   if (pointInPolygon(eraserP2, stroke.outlinePolygon)) return true;
-
   if (eraserP1.x !== eraserP2.x || eraserP1.y !== eraserP2.y) {
     const pts = stroke.outlinePolygon;
     for (let i = 0; i < pts.length - 1; i++) {
@@ -171,6 +145,5 @@ export function isEraserIntersectingStroke(
       }
     }
   }
-
   return false;
 }

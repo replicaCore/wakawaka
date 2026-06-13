@@ -1,13 +1,10 @@
 import type { Project } from "../shared/types";
-
 export class Database {
   private dbName = "CanvasHubDB";
   private storeName = "projects";
   private db: IDBDatabase | null = null;
-
   public async init(): Promise<void> {
     await this.requestPersistentStorage();
-
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.dbName, 2);
       request.onupgradeneeded = () => {
@@ -26,7 +23,6 @@ export class Database {
       request.onerror = () => reject(request.error);
     });
   }
-
   public async getAllLibraryItems(): Promise<any[]> {
     return new Promise((resolve, reject) => {
       if (!this.db) return reject("DB not init");
@@ -38,7 +34,6 @@ export class Database {
       req.onerror = () => reject(req.error);
     });
   }
-
   public async saveLibraryItem(item: any): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.db) return reject("DB not init");
@@ -50,7 +45,6 @@ export class Database {
       req.onerror = () => reject(req.error);
     });
   }
-
   public async deleteLibraryItem(id: string): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.db) return reject("DB not init");
@@ -62,7 +56,6 @@ export class Database {
       req.onerror = () => reject(req.error);
     });
   }
-
   public async getAllProjects(): Promise<Project[]> {
     return new Promise((resolve, reject) => {
       if (!this.db) return reject("DB not initialized");
@@ -73,8 +66,6 @@ export class Database {
       request.onerror = () => reject(request.error);
     });
   }
-
-  // НОВОЕ: Получить конкретный проект по ID
   public async getProject(id: string): Promise<Project | undefined> {
     return new Promise((resolve, reject) => {
       if (!this.db) return reject("DB not initialized");
@@ -85,7 +76,6 @@ export class Database {
       request.onerror = () => reject(request.error);
     });
   }
-
   public async saveProject(project: Project): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.db) return reject("DB not initialized");
@@ -96,7 +86,6 @@ export class Database {
       request.onerror = () => reject(request.error);
     });
   }
-
   public async deleteProject(id: string): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.db) return reject("DB not initialized");
@@ -107,7 +96,6 @@ export class Database {
       request.onerror = () => reject(request.error);
     });
   }
-
   private async requestPersistentStorage() {
     if (navigator.storage && navigator.storage.persist) {
       try {
@@ -116,7 +104,6 @@ export class Database {
           console.log("✅ Хранилище защищено от очистки (уже Persistent).");
           return;
         }
-
         const granted = await navigator.storage.persist();
         if (granted) {
           console.log("✅ Android разрешил Persistent Storage!");

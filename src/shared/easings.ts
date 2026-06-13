@@ -29,5 +29,4 @@ export const EASINGS = {
           ? Math.pow(2, 20 * t - 10) / 2
           : (2 - Math.pow(2, -20 * t + 10)) / 2,
 } as const;
-
 export type EasingType = keyof typeof EASINGS;

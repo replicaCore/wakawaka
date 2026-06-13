@@ -1,6 +1,5 @@
 import type { State } from "../../core/State";
 import { exportImage, exportJSON, exportSVG } from "../../services/Exporter";
-
 export function renderExportTab(content: HTMLDivElement, state: State) {
   content.innerHTML = `
     <div class="flex flex-col gap-3">
@@ -18,7 +17,6 @@ export function renderExportTab(content: HTMLDivElement, state: State) {
       </button>
     </div>
   `;
-
   document
     .getElementById("exp-json")
     ?.addEventListener("click", () => exportJSON(state.getProjectData()));

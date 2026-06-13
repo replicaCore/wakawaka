@@ -1,6 +1,5 @@
 export const round1 = (num: number) => Math.round(num * 10) / 10;
 export const average = (a: number, b: number) => (a + b) / 2;
-
 export function getSvgPathFromStroke(points: number[][], closed = true) {
   const len = points.length;
   if (len < 4) return ``;
@@ -16,7 +15,6 @@ export function getSvgPathFromStroke(points: number[][], closed = true) {
   if (closed) result += "Z";
   return result;
 }
-
 export function isColorDark(hexColor: string): boolean {
   const hex = hexColor.replace("#", "");
   const r = parseInt(hex.substring(0, 2), 16);
