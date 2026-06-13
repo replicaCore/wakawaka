@@ -3,6 +3,36 @@ import { getSvgPathFromStroke } from "../shared/utils";
 import type { State } from "../core/State";
 import type { Stroke } from "../shared/types";
 
+class LRUCache<K, V> {
+  private max: number;
+  private cache: Map<K, V> = new Map();
+
+  constructor(max: number) {
+    this.max = max;
+  }
+
+  get(key: K): V | undefined {
+    const item = this.cache.get(key);
+    if (item) {
+      this.cache.delete(key);
+      this.cache.set(key, item);
+    }
+    return item;
+  }
+
+  set(key: K, val: V) {
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    } else if (this.cache.size >= this.max) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey !== undefined) {
+        this.cache.delete(firstKey);
+      }
+    }
+    this.cache.set(key, val);
+  }
+}
+
 export class Render {
   private ctx: CanvasRenderingContext2D;
   private canvas: HTMLCanvasElement;
@@ -13,8 +43,9 @@ export class Render {
   private framesThisSecond = 0;
   private fpsElement = document.getElementById("fps-counter");
 
-  private pathCache = new WeakMap<Stroke, Path2D>();
-  private simplePathCache = new WeakMap<Stroke, Path2D>();
+  // ✅ ЗАМЕНЕНО: WeakMap заменен на LRUCache. Ключом теперь является строка (stroke.id)
+  private pathCache = new LRUCache<string, Path2D>(3000);
+  private simplePathCache = new LRUCache<string, Path2D>(3000);
 
   constructor(canvas: HTMLCanvasElement, state: State) {
     this.canvas = canvas;
@@ -92,7 +123,7 @@ export class Render {
 
     const visibleIds = new Set(visibleItems.map((item) => item.stroke.id));
 
-    // ✅ Изменяем порог включения LOD на 50% (0.5) для лучшей производительности
+    // Изменяем порог включения LOD на 50% (0.5) для лучшей производительности
     const useLOD = camera.zoom < 0.5;
 
     for (const strokeId of this.state.strokeOrder) {
@@ -120,8 +151,9 @@ export class Render {
       }
 
       // Рендер обычных линий
-      let path = this.pathCache.get(stroke);
-      let simplePath = this.simplePathCache.get(stroke);
+      // ✅ Изменено: получаем пути по stroke.id из нашего LRU кэша
+      let path = this.pathCache.get(stroke.id);
+      let simplePath = this.simplePathCache.get(stroke.id);
 
       if (!path || !simplePath || stroke._pathDirty) {
         // Нормальный сглаженный путь (для приближения)
@@ -130,15 +162,12 @@ export class Render {
           simulatePressure: false,
         });
         path = new Path2D(getSvgPathFromStroke(outlinePoints));
-        this.pathCache.set(stroke, path);
 
-        // ✅ Сильная оптимизация для отдаления: прореживание точек
+        // Сильная оптимизация для отдаления: прореживание точек
         simplePath = new Path2D();
         if (stroke.points.length > 0) {
           simplePath.moveTo(stroke.points[0].x, stroke.points[0].y);
 
-          // Децимация: берем только те точки, которые находятся на
-          // расстоянии больше 10 пикселей друг от друга.
           const OPTIMIZATION_THRESHOLD = 10;
           let lastSavedPt = stroke.points[0];
 
@@ -146,19 +175,19 @@ export class Render {
             const pt = stroke.points[i];
             const dist = Math.hypot(pt.x - lastSavedPt.x, pt.y - lastSavedPt.y);
 
-            // Рисуем ПРЯМУЮ линию только если точка далеко
             if (dist > OPTIMIZATION_THRESHOLD) {
               simplePath.lineTo(pt.x, pt.y);
               lastSavedPt = pt;
             }
           }
 
-          // Обязательно замыкаем последнюю точку
           const lastPt = stroke.points[stroke.points.length - 1];
           simplePath.lineTo(lastPt.x, lastPt.y);
         }
 
-        this.simplePathCache.set(stroke, simplePath);
+        // ✅ Сохраняем сгенерированные пути в LRU-кэш
+        this.pathCache.set(stroke.id, path);
+        this.simplePathCache.set(stroke.id, simplePath);
         stroke._pathDirty = false;
       }
 
@@ -173,21 +202,18 @@ export class Render {
       if (useLOD) {
         this.ctx.strokeStyle = stroke.color;
         this.ctx.lineWidth = stroke.pen.size;
-        // Оставляем скругления на концах прямых, чтобы не было дыр
         this.ctx.lineCap = "round";
         this.ctx.lineJoin = "round";
-        this.ctx.stroke(simplePath); // Отрисовывается сильно прореженный ломанный путь
+        this.ctx.stroke(simplePath);
       } else {
         this.ctx.fillStyle = stroke.color;
-        this.ctx.fill(path); // Отрисовывается идеальная линия Perfect Freehand
+        this.ctx.fill(path);
       }
     }
 
     this.ctx.globalAlpha = 1.0;
 
     // Отрисовка "живой" линии в процессе рисования
-    // Так как она рисуется здесь, она ВСЕГДА будет использовать perfect-freehand
-    // и будет идеально сглажена даже на масштабе 10%
     if (this.state.currentStroke.length > 0) {
       this.ctx.fillStyle = this.state.currentColor;
       if (this.state.currentPen.isMarker) this.ctx.globalAlpha = 0.4;
