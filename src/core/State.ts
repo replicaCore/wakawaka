@@ -26,14 +26,32 @@ import {
 } from "./SelectionMath";
 import { round1 } from "../shared/utils";
 
+// ✅ СУПЕР-ОПТИМИЗАЦИЯ: Быстрое копирование штрихов вместо медленного structuredClone.
+// V8 оптимизирует .map() и создание мелких объектов на лету, что убирает любые микрофризы при Undo/Redo/Move.
+export function fastCloneStroke(s: Stroke): Stroke {
+  return {
+    id: s.id,
+    type: s.type,
+    text: s.text,
+    color: s.color,
+    pen: { ...s.pen },
+    _pathDirty: s._pathDirty,
+    groupIds: s.groupIds ? [...s.groupIds] : undefined,
+    bounds: s.bounds ? { ...s.bounds } : undefined,
+    points: s.points.map((p) => ({ x: p.x, y: p.y })),
+    outlinePolygon: s.outlinePolygon
+      ? s.outlinePolygon.map((p) => ({ x: p.x, y: p.y }))
+      : undefined,
+  };
+}
+
 export class State {
   public currentProjectId: string | null = null;
   public currentProjectName: string = "Новый холст";
   public isDirty: boolean = false;
 
-  // Нормализованный стейт
   public strokes: Map<string, Stroke> = new Map();
-  public strokeOrder: string[] = []; // Хранит Z-index
+  public strokeOrder: string[] = [];
 
   public currentStroke: Point[] = [];
   public erasingStrokes: Set<Stroke> = new Set();
@@ -51,10 +69,6 @@ export class State {
   public backgroundColor: string = "#000000";
   public invertColors: boolean = false;
 
-  private uiUpdatePending = false;
-
-  // --- ИЗМЕНЕНИЕ ---
-  // Согласовали дефолтные цвета с ColorsTab
   public colors: any[] = [
     "#282828",
     "#ef4444",
@@ -66,7 +80,7 @@ export class State {
 
   public penSizes: [number, number, number] = [4, 12, 24];
   public activeSizeIndex: number = 1;
-  public pens: PenOptions[] = structuredClone(PEN_PRESETS);
+  public pens: PenOptions[] = structuredClone(PEN_PRESETS); // Здесь можно оставить, т.к. это выполняется 1 раз и массив крошечный
   public currentPen: PenOptions = this.pens[0];
 
   private historyManager = new HistoryManager();
@@ -77,7 +91,7 @@ export class State {
   public spatialIndex = new RBush<SpatialItem>(9);
   private spatialMap = new Map<string, SpatialItem>();
 
-  public syncDeltas = new Map<string, Stroke | null>(); // Для Delta-сохранений
+  public syncDeltas = new Map<string, Stroke | null>();
 
   public subscribeUI(fn: () => void) {
     this.uiListeners.push(fn);
@@ -99,8 +113,6 @@ export class State {
   public markDirty() {
     this.isDirty = true;
   }
-
-  // --- УПРАВЛЕНИЕ ИНДЕКСОМ И НОРМАЛИЗОВАННЫМ СТЕЙТОМ ---
 
   private ensureBounds(stroke: Stroke) {
     if (!stroke.bounds) {
@@ -172,8 +184,6 @@ export class State {
     return this.strokeOrder.map((id) => this.strokes.get(id)!).filter(Boolean);
   }
 
-  // --- ИСТОРИЯ (Хирургическое применение) ---
-
   private applyInverseStep(step: HistoryStep) {
     switch (step.action) {
       case "ADD":
@@ -193,7 +203,8 @@ export class State {
           .sort((a, b) => a.index - b.index);
 
         for (const r of restores) {
-          this.strokes.set(r.stroke.id, structuredClone(r.stroke));
+          // ✅ Оптимизация
+          this.strokes.set(r.stroke.id, fastCloneStroke(r.stroke));
           this.strokeOrder.splice(r.index, 0, r.stroke.id);
           this.addStrokeToIndex(this.strokes.get(r.stroke.id)!);
           this.syncDeltas.set(r.stroke.id, this.strokes.get(r.stroke.id)!);
@@ -202,13 +213,14 @@ export class State {
       case "UPDATE":
         for (const s of step.before) {
           this.removeStrokeFromIndex(this.strokes.get(s.id)!);
-          const restored = structuredClone(s);
+          // ✅ Оптимизация
+          const restored = fastCloneStroke(s);
           this.strokes.set(s.id, restored);
           this.addStrokeToIndex(restored);
           this.syncDeltas.set(s.id, restored);
         }
         break;
-      case "REORDER": // <--- ДОБАВЛЕНО
+      case "REORDER":
         this.strokeOrder = [...step.before];
         break;
     }
@@ -218,7 +230,8 @@ export class State {
     switch (step.action) {
       case "ADD":
         for (const s of step.strokes) {
-          const cloned = structuredClone(s);
+          // ✅ Оптимизация
+          const cloned = fastCloneStroke(s);
           this.strokes.set(s.id, cloned);
           this.strokeOrder.push(s.id);
           this.addStrokeToIndex(cloned);
@@ -236,13 +249,14 @@ export class State {
       case "UPDATE":
         for (const s of step.after) {
           this.removeStrokeFromIndex(this.strokes.get(s.id)!);
-          const cloned = structuredClone(s);
+          // ✅ Оптимизация
+          const cloned = fastCloneStroke(s);
           this.strokes.set(s.id, cloned);
           this.addStrokeToIndex(cloned);
           this.syncDeltas.set(s.id, cloned);
         }
         break;
-      case "REORDER": // <--- ДОБАВЛЕНО
+      case "REORDER":
         this.strokeOrder = [...step.after];
         break;
     }
@@ -251,8 +265,18 @@ export class State {
   public undo() {
     const step = this.historyManager.undo();
     if (step) {
+      const selectedIds = Array.from(this.selectedStrokes).map((s) => s.id);
+
       this.applyInverseStep(step);
+
       this.selectedStrokes.clear();
+      for (const id of selectedIds) {
+        const updatedStroke = this.strokes.get(id);
+        if (updatedStroke) {
+          this.selectedStrokes.add(updatedStroke);
+        }
+      }
+
       this.markDirty();
       this.onUpdate();
       this.triggerUIUpdate();
@@ -262,8 +286,21 @@ export class State {
   public redo() {
     const step = this.historyManager.redo();
     if (step) {
+      // 1. Запоминаем ID выделенных элементов
+      const selectedIds = Array.from(this.selectedStrokes).map((s) => s.id);
+
+      // 2. Применяем шаг истории
       this.applyForwardStep(step);
+
+      // 3. Восстанавливаем выделение со свежими ссылками
       this.selectedStrokes.clear();
+      for (const id of selectedIds) {
+        const updatedStroke = this.strokes.get(id);
+        if (updatedStroke) {
+          this.selectedStrokes.add(updatedStroke);
+        }
+      }
+
       this.markDirty();
       this.onUpdate();
       this.triggerUIUpdate();
@@ -272,12 +309,12 @@ export class State {
 
   private executeUpdate(updateFn: () => void) {
     if (this.selectedStrokes.size === 0) return;
-    const before = structuredClone(Array.from(this.selectedStrokes));
+    // ✅ Оптимизация: поверхностное копирование массива штрихов
+    const before = Array.from(this.selectedStrokes).map(fastCloneStroke);
     updateFn();
-    const after = structuredClone(Array.from(this.selectedStrokes));
+    const after = Array.from(this.selectedStrokes).map(fastCloneStroke);
     for (const s of this.selectedStrokes) this.syncDeltas.set(s.id, s);
 
-    // Сохраняем индексы для DELETE операций
     this.historyManager.push({ action: "UPDATE", before, after });
     this.markDirty();
     this.onUpdate();
@@ -286,12 +323,16 @@ export class State {
 
   public startContinuousUpdate() {
     if (this.selectedStrokes.size === 0) return;
-    this.dragBeforeState = structuredClone(Array.from(this.selectedStrokes));
+    // ✅ Оптимизация
+    this.dragBeforeState = Array.from(this.selectedStrokes).map(
+      fastCloneStroke,
+    );
   }
 
   public commitContinuousUpdate() {
     if (!this.dragBeforeState || this.selectedStrokes.size === 0) return;
-    const after = structuredClone(Array.from(this.selectedStrokes));
+    // ✅ Оптимизация
+    const after = Array.from(this.selectedStrokes).map(fastCloneStroke);
     this.historyManager.push({
       action: "UPDATE",
       before: this.dragBeforeState,
@@ -330,7 +371,8 @@ export class State {
 
       this.historyManager.push({
         action: "ADD",
-        strokes: [structuredClone(newStroke)],
+        // ✅ Оптимизация
+        strokes: [fastCloneStroke(newStroke)],
       });
 
       this.addStrokeToIndex(newStroke);
@@ -380,14 +422,15 @@ export class State {
       const indices = erasedArr.map((s) => this.strokeOrder.indexOf(s.id));
       this.historyManager.push({
         action: "DELETE",
-        strokes: structuredClone(erasedArr),
+        // ✅ Оптимизация
+        strokes: erasedArr.map(fastCloneStroke),
         indices,
       });
 
       for (const s of erasedArr) {
         this.removeStrokeFromIndex(s);
         this.strokes.delete(s.id);
-        this.syncDeltas.set(s.id, null); // Помечаем как удаленное
+        this.syncDeltas.set(s.id, null);
       }
 
       const erasedIds = new Set(erasedArr.map((s) => s.id));
@@ -399,16 +442,13 @@ export class State {
     }
   }
 
-  // ТОЛЬКО ИЗМЕНЕННЫЕ МЕТОДЫ в src/core/State.ts
-
   public setPen(index: number) {
     this.currentPen = this.pens[index];
     this.selectedStrokes.clear();
     this.selectionMode = "move";
 
-    this.markDirty(); // ДОБАВЛЕНО: Говорим, что проект изменен
-    this.onUpdate(); // ДОБАВЛЕНО: Триггерим воркер автосохранения
-
+    this.markDirty();
+    this.onUpdate();
     this.triggerUIUpdate();
   }
 
@@ -420,9 +460,8 @@ export class State {
       });
     }
 
-    this.markDirty(); // ДОБАВЛЕНО
-    this.onUpdate(); // ДОБАВЛЕНО
-
+    this.markDirty();
+    this.onUpdate();
     this.triggerUIUpdate();
   }
 
@@ -518,7 +557,8 @@ export class State {
     const indices = delArr.map((s) => this.strokeOrder.indexOf(s.id));
     this.historyManager.push({
       action: "DELETE",
-      strokes: structuredClone(delArr),
+      // ✅ Оптимизация
+      strokes: delArr.map(fastCloneStroke),
       indices,
     });
 
@@ -636,7 +676,8 @@ export class State {
     const newStrokesList: Stroke[] = [];
 
     for (const stroke of this.selectedStrokes) {
-      const newStroke: Stroke = structuredClone(stroke);
+      // ✅ Оптимизация
+      const newStroke: Stroke = fastCloneStroke(stroke);
 
       newStroke.id = this.generateId();
       newStroke.bounds = undefined;
@@ -664,7 +705,8 @@ export class State {
 
     this.historyManager.push({
       action: "ADD",
-      strokes: structuredClone(newStrokesList),
+      // ✅ Оптимизация
+      strokes: newStrokesList.map(fastCloneStroke),
     });
 
     this.selectedStrokes = newSelected;
@@ -700,41 +742,11 @@ export class State {
     });
   }
 
-  // Добавьте эти методы в класс State, например, после метода flipSelected
-
-  public flipSelected(direction: "horizontal" | "vertical") {
-    if (this.selectedStrokes.size === 0) return;
-    const bounds = this.getSelectionBounds();
-    if (!bounds) return;
-
-    const cx = (bounds.minX + bounds.maxX) / 2;
-    const cy = (bounds.minY + bounds.maxY) / 2;
-
-    this.executeUpdate(() => {
-      for (const stroke of this.selectedStrokes) {
-        this.removeStrokeFromIndex(stroke);
-
-        stroke.bounds = undefined;
-        stroke.outlinePolygon = undefined;
-        stroke._pathDirty = true;
-
-        for (const p of stroke.points) {
-          if (direction === "horizontal") p.x = round1(2 * cx - p.x);
-          else p.y = round1(2 * cy - p.y);
-        }
-
-        this.addStrokeToIndex(stroke);
-      }
-    });
-  }
-
-  // --- ДОБАВЛЕНО: Управление слоями (Z-index) ---
   public reorderSelected(direction: "up" | "down" | "front" | "back") {
     if (this.selectedStrokes.size === 0) return;
 
     const beforeOrder = [...this.strokeOrder];
 
-    // Получаем ID выделенных и невыделенных объектов в их текущем порядке
     const selectedIds = new Set(
       Array.from(this.selectedStrokes).map((s) => s.id),
     );
@@ -744,13 +756,10 @@ export class State {
     );
 
     if (direction === "front") {
-      // На самый передний план
       this.strokeOrder = [...unselectedIds, ...sortedSelectedIds];
     } else if (direction === "back") {
-      // На самый задний план
       this.strokeOrder = [...sortedSelectedIds, ...unselectedIds];
     } else if (direction === "up") {
-      // Поднять на 1 слой выше
       const newOrder = [...this.strokeOrder];
       for (let i = newOrder.length - 2; i >= 0; i--) {
         if (selectedIds.has(newOrder[i]) && !selectedIds.has(newOrder[i + 1])) {
@@ -761,7 +770,6 @@ export class State {
       }
       this.strokeOrder = newOrder;
     } else if (direction === "down") {
-      // Опустить на 1 слой ниже
       const newOrder = [...this.strokeOrder];
       for (let i = 1; i < newOrder.length; i++) {
         if (selectedIds.has(newOrder[i]) && !selectedIds.has(newOrder[i - 1])) {
@@ -773,7 +781,6 @@ export class State {
       this.strokeOrder = newOrder;
     }
 
-    // Проверяем, изменился ли порядок на самом деле
     let changed = false;
     for (let i = 0; i < beforeOrder.length; i++) {
       if (beforeOrder[i] !== this.strokeOrder[i]) {
@@ -782,7 +789,6 @@ export class State {
       }
     }
 
-    // Сохраняем в историю и триггерим рендер
     if (changed) {
       this.historyManager.push({
         action: "REORDER",
@@ -809,7 +815,6 @@ export class State {
       this.penSizes = project.penSizes || [4, 12, 24];
       this.activeSizeIndex = project.activeSizeIndex ?? 1;
 
-      // --- ИЗМЕНЕНИЕ: Загружаем сохраненную палитру проекта ---
       if (project.colors && project.colors.length > 0) {
         this.colors = structuredClone(project.colors);
       } else {
@@ -837,7 +842,6 @@ export class State {
       this.camera = { x: 0, y: 0, zoom: 1 };
       this.selectionDragAnywhere = true;
 
-      // --- ИЗМЕНЕНИЕ: Дефолтная палитра для новых проектов ---
       this.colors = ["#000000", "#ef4444", "#22c55e", "#3b82f6", "#eab308"];
 
       this.pens[0].icon = "pen-tool";
@@ -870,7 +874,7 @@ export class State {
       penSizes: this.penSizes,
       redoHistory: includeHistory ? redoHistory : [],
       selectionDragAnywhere: this.selectionDragAnywhere,
-      colors: this.colors, // <--- ИЗМЕНЕНИЕ: Добавили экспорт палитры
+      colors: this.colors,
       strokes: this.getStrokesList(),
       thumbnail: "",
       updatedAt: Date.now(),
@@ -888,9 +892,9 @@ export class State {
     const dx = pt.x - cx;
     const dy = pt.y - cy;
 
-    const newStrokes: Stroke[] = structuredClone(
-      this.spawningLibraryItem.strokes,
-    );
+    // ✅ Оптимизация
+    const newStrokes: Stroke[] =
+      this.spawningLibraryItem.strokes.map(fastCloneStroke);
     const newGroupId = this.generateId();
 
     for (const s of newStrokes) {
@@ -910,7 +914,8 @@ export class State {
 
     this.historyManager.push({
       action: "ADD",
-      strokes: structuredClone(newStrokes),
+      // ✅ Оптимизация
+      strokes: newStrokes.map(fastCloneStroke),
     });
 
     this.selectedStrokes = new Set(newStrokes);
@@ -940,7 +945,6 @@ export class State {
       id: this.generateId(),
       type: "text",
       text,
-      // 4 угла нужны, чтобы лассо без проблем захватывало текст
       points: [
         { x, y },
         { x: x + width, y },
@@ -951,7 +955,7 @@ export class State {
       pen: { ...this.currentPen },
       _pathDirty: true,
     };
-    newStroke.outlinePolygon = [...newStroke.points]; // Явный хитбокс для стерки
+    newStroke.outlinePolygon = [...newStroke.points];
 
     this.strokes.set(newStroke.id, newStroke);
     this.strokeOrder.push(newStroke.id);
@@ -959,7 +963,8 @@ export class State {
 
     this.historyManager.push({
       action: "ADD",
-      strokes: [structuredClone(newStroke)],
+      // ✅ Оптимизация
+      strokes: [fastCloneStroke(newStroke)],
     });
 
     this.addStrokeToIndex(newStroke);
