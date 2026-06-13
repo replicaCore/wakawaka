@@ -42,7 +42,21 @@ self.onmessage = (e: MessageEvent) => {
       const db = request.result;
       const tx = db.transaction(STORE_NAME, "readwrite");
       tx.objectStore(STORE_NAME).put(projectToSave);
-      tx.oncomplete = () => db.close();
+
+      // ✅ ИСПРАВЛЕНИЕ: Отправляем ответ главному потоку, что сохранение завершено!
+      tx.oncomplete = () => {
+        db.close();
+        self.postMessage({ type: "SAVED", projectId: meta.id });
+      };
+
+      tx.onerror = () => {
+        db.close();
+        self.postMessage({
+          type: "ERROR",
+          error: tx.error?.message,
+          projectId: meta.id,
+        });
+      };
     };
   }
 };

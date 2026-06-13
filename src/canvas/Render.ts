@@ -131,10 +131,26 @@ export class Render {
         path = new Path2D(getSvgPathFromStroke(outlinePoints));
         this.pathCache.set(stroke, path);
 
+        // ✅ ИСПРАВЛЕНИЕ: Рисуем LOD-линию с помощью квадратичных кривых (quadraticCurveTo), а не прямых линий
         simplePath = new Path2D();
         if (stroke.points.length > 0) {
           simplePath.moveTo(stroke.points[0].x, stroke.points[0].y);
-          for (let i = 1; i < stroke.points.length; i++) {
+          if (stroke.points.length === 1) {
+            simplePath.lineTo(stroke.points[0].x, stroke.points[0].y);
+          } else if (stroke.points.length === 2) {
+            simplePath.lineTo(stroke.points[1].x, stroke.points[1].y);
+          } else {
+            let i = 1;
+            for (; i < stroke.points.length - 1; i++) {
+              const xc = (stroke.points[i].x + stroke.points[i + 1].x) / 2;
+              const yc = (stroke.points[i].y + stroke.points[i + 1].y) / 2;
+              simplePath.quadraticCurveTo(
+                stroke.points[i].x,
+                stroke.points[i].y,
+                xc,
+                yc,
+              );
+            }
             simplePath.lineTo(stroke.points[i].x, stroke.points[i].y);
           }
         }

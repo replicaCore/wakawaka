@@ -56,7 +56,7 @@ export class State {
   // --- ИЗМЕНЕНИЕ ---
   // Согласовали дефолтные цвета с ColorsTab
   public colors: any[] = [
-    "#000000",
+    "#282828",
     "#ef4444",
     "#22c55e",
     "#3b82f6",
@@ -393,11 +393,16 @@ export class State {
     }
   }
 
+  // ТОЛЬКО ИЗМЕНЕННЫЕ МЕТОДЫ в src/core/State.ts
+
   public setPen(index: number) {
     this.currentPen = this.pens[index];
     this.selectedStrokes.clear();
     this.selectionMode = "move";
-    this.onUpdate();
+
+    this.markDirty(); // ДОБАВЛЕНО: Говорим, что проект изменен
+    this.onUpdate(); // ДОБАВЛЕНО: Триггерим воркер автосохранения
+
     this.triggerUIUpdate();
   }
 
@@ -408,6 +413,10 @@ export class State {
         for (const stroke of this.selectedStrokes) stroke.color = color;
       });
     }
+
+    this.markDirty(); // ДОБАВЛЕНО
+    this.onUpdate(); // ДОБАВЛЕНО
+
     this.triggerUIUpdate();
   }
 

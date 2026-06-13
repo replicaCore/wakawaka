@@ -6,6 +6,9 @@ export class AutosaveService {
   private worker: Worker;
   private initializedProjects = new Set<string>();
 
+  // ✅ ИСПРАВЛЕНИЕ: Хранилище для ожидания завершения фонового сохранения
+  private saveResolvers = new Map<string, () => void>();
+
   constructor(
     private state: State,
     private canvas: HTMLCanvasElement,
@@ -21,10 +24,22 @@ export class AutosaveService {
     };
 
     this.worker.onmessage = (event) => {
+      // ✅ ИСПРАВЛЕНИЕ: Завершаем Promise при ответе воркера
       if (event.data.type === "SAVED") {
-        console.log("Autosave completed:", event.data.projectId);
+        const resolver = this.saveResolvers.get(event.data.projectId);
+        if (resolver) {
+          resolver();
+          this.saveResolvers.delete(event.data.projectId);
+        }
       } else if (event.data.type === "ERROR") {
         console.error("Autosave error:", event.data.error);
+        if (event.data.projectId) {
+          const resolver = this.saveResolvers.get(event.data.projectId);
+          if (resolver) {
+            resolver();
+            this.saveResolvers.delete(event.data.projectId);
+          }
+        }
       }
     };
   }
@@ -38,44 +53,53 @@ export class AutosaveService {
     }, 3000) as unknown as number;
   }
 
-  public forceSave() {
-    if (!this.state.currentProjectId || !this.state.isDirty) return;
-    if (this.timer) clearTimeout(this.timer);
+  // ✅ ИСПРАВЛЕНИЕ: Теперь функция возвращает Promise
+  public forceSave(): Promise<void> {
+    return new Promise((resolve) => {
+      if (!this.state.currentProjectId || !this.state.isDirty) {
+        resolve(); // Нечего сохранять, завершаем моментально
+        return;
+      }
+      if (this.timer) clearTimeout(this.timer);
 
-    const projectId = this.state.currentProjectId;
-    const isInit = !this.initializedProjects.has(projectId);
+      const projectId = this.state.currentProjectId;
+      const isInit = !this.initializedProjects.has(projectId);
 
-    // 1. Генерация картинки (Canvas API работает ТОЛЬКО в главном потоке)
-    const thumbnail = this.generateThumbnail();
+      // 1. Генерация картинки (Canvas API работает ТОЛЬКО в главном потоке)
+      const thumbnail = this.generateThumbnail();
 
-    // 2. Собираем мета-данные проекта
-    const projectData = this.state.getProjectData(false);
+      // 2. Собираем мета-данные проекта
+      const projectData = this.state.getProjectData(false);
 
-    // ✅ ИСПРАВЛЕНИЕ ТИПОВ: Отделяем strokes через деструктуризацию
-    const { strokes, ...meta } = {
-      ...projectData,
-      thumbnail,
-      updatedAt: Date.now(),
-    };
+      // ✅ ИСПРАВЛЕНИЕ ТИПОВ: Отделяем strokes через деструктуризацию
+      const { strokes, ...meta } = {
+        ...projectData,
+        thumbnail,
+        updatedAt: Date.now(),
+      };
 
-    // 3. Получаем дельты (измененные штрихи с момента последнего сохранения)
-    const deltas = Array.from(this.state.syncDeltas.entries());
-    this.state.syncDeltas.clear(); // Очищаем после отправки
+      // 3. Получаем дельты (измененные штрихи с момента последнего сохранения)
+      const deltas = Array.from(this.state.syncDeltas.entries());
+      this.state.syncDeltas.clear(); // Очищаем после отправки
 
-    // 4. Отправляем в фоновый поток
-    this.worker.postMessage({
-      type: isInit ? "INIT_AND_SAVE" : "UPDATE_AND_SAVE",
-      payload: {
-        projectId,
-        meta,
-        strokeOrder: this.state.strokeOrder, // Легкий массив ID для порядка отрисовки
-        deltas, // { strokeId, stroke | null } - null означает удаление
-        fullStrokes: isInit ? this.state.getStrokesList() : undefined, // Только при первой инициализации
-      },
+      // Запоминаем функцию resolve() для этого проекта
+      this.saveResolvers.set(projectId, resolve);
+
+      // 4. Отправляем в фоновый поток
+      this.worker.postMessage({
+        type: isInit ? "INIT_AND_SAVE" : "UPDATE_AND_SAVE",
+        payload: {
+          projectId,
+          meta,
+          strokeOrder: this.state.strokeOrder, // Легкий массив ID для порядка отрисовки
+          deltas, // { strokeId, stroke | null } - null означает удаление
+          fullStrokes: isInit ? this.state.getStrokesList() : undefined, // Только при первой инициализации
+        },
+      });
+
+      this.initializedProjects.add(projectId);
+      this.state.isDirty = false;
     });
-
-    this.initializedProjects.add(projectId);
-    this.state.isDirty = false;
   }
 
   private generateThumbnail(): string {

@@ -117,8 +117,6 @@ export class InputHandler {
 
     document.body.appendChild(input);
 
-    // ✅ ВАЖНО: ЗАДЕРЖКА ФОКУСА!
-    // Без неё Canvas крадет фокус обратно, и поле ввода мгновенно исчезает.
     setTimeout(() => {
       input.focus();
     }, 10);
@@ -150,7 +148,7 @@ export class InputHandler {
     this.pointers.set(e.pointerId, e);
 
     if (this.pointers.size === 2) {
-      if (this.activeTextInput) this.activeTextInput.blur(); // Закрываем текст
+      if (this.activeTextInput) this.activeTextInput.blur();
       const pts = Array.from(this.pointers.values());
       this.lastPinchDist = Math.hypot(
         pts[0].clientX - pts[1].clientX,
@@ -173,7 +171,7 @@ export class InputHandler {
     if (this.pointers.size > 2) return;
 
     if (e.button === 1 || this.isSpacePressed) {
-      if (this.activeTextInput) this.activeTextInput.blur(); // Закрываем текст
+      if (this.activeTextInput) this.activeTextInput.blur();
       this.isPanning = true;
       this.lastPanPoint = { x: e.clientX, y: e.clientY };
       if (this.isSpacePressed) this.canvas.style.cursor = "grabbing";
@@ -184,11 +182,10 @@ export class InputHandler {
 
     const worldPt = this.getScreenToWorld(e.clientX, e.clientY);
 
-    // ✅ ТЕКСТОВЫЙ ИНСТРУМЕНТ
     if (this.state.currentPen.isText) {
       if (this.activeTextInput) {
         this.activeTextInput.blur();
-        return; // ✅ ВАЖНО: Если мы закрыли текст кликом, НЕ создаем сразу второй!
+        return;
       }
       this.createTextElement(e.clientX, e.clientY, worldPt);
       return;
@@ -319,13 +316,12 @@ export class InputHandler {
       return;
     }
 
-    const threshold = 2 / this.state.camera.zoom;
-
     if (this.isDrawingLasso) {
+      const lassoThreshold = 5 / this.state.camera.zoom;
       const lastPt = this.state.lassoPath[this.state.lassoPath.length - 1];
       if (lastPt) {
         const dist = Math.hypot(worldPt.x - lastPt.x, worldPt.y - lastPt.y);
-        if (dist < threshold) return;
+        if (dist < lassoThreshold) return;
       }
 
       this.state.lassoPath.push({
@@ -373,8 +369,10 @@ export class InputHandler {
     const lastPt =
       this.state.currentStroke[this.state.currentStroke.length - 1];
     if (lastPt) {
+      // ✅ ИСПРАВЛЕНИЕ: Адаптивный порог (1.5 пикселя экрана). Не плодит 100500 точек, но сохраняет идеальную плавность при любом зуме
+      const drawThreshold = 1.5 / this.state.camera.zoom;
       const dist = Math.hypot(worldPt.x - lastPt.x, worldPt.y - lastPt.y);
-      if (dist < threshold) return;
+      if (dist < drawThreshold) return;
     }
 
     this.state.addPoint({
